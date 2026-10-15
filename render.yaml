@@ -1,0 +1,31 @@
+# Deploy via Render Blueprints. This is infrastructure only; no secrets are committed.
+# The paid persistent database is intentional: expiring databases break long-lived Gmail sessions.
+services:
+  - type: web
+    name: deltos-auth
+    runtime: node
+    plan: starter
+    rootDir: auth-server
+    buildCommand: npm install --omit=dev --no-audit --no-fund
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_URL
+        value: https://marcusdhaynes.github.io/Deltos/
+      - key: DATABASE_URL
+        fromDatabase:
+          name: deltos-auth-db
+          property: connectionString
+      - key: TOKEN_ENCRYPTION_KEY
+        generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+databases:
+  - name: deltos-auth-db
+    plan: basic-256mb
