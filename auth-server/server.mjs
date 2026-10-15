@@ -3,14 +3,21 @@ import crypto from 'node:crypto';
 import { Pool } from 'pg';
 
 const env = process.env;
-const required = ['GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','AUTH_BASE_URL','DATABASE_URL','TOKEN_ENCRYPTION_KEY'];
+const required = ['GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','DATABASE_URL','TOKEN_ENCRYPTION_KEY'];
 for (const key of required) if (!env[key]) throw Error('Missing server configuration: ' + key);
-const base = new URL(env.AUTH_BASE_URL).origin;
+const authUrl = env.AUTH_BASE_URL || env.RENDER_EXTERNAL_URL;
+if (!authUrl) throw Error('Set AUTH_BASE_URL or use a host that supplies RENDER_EXTERNAL_URL');
+const base = new URL(authUrl).origin;
 const appOrigin = new URL(env.APP_URL || 'https://marcusdhaynes.github.io/Deltos/').origin;
 const appReturn = new URL(env.APP_URL || 'https://marcusdhaynes.github.io/Deltos/').href;
 if (!base.startsWith('https://') && !base.startsWith('http://localhost')) throw Error('AUTH_BASE_URL must be HTTPS');
-const key = Buffer.from(env.TOKEN_ENCRYPTION_KEY, 'base64');
-if (key.length !== 32) throw Error('TOKEN_ENCRYPTION_KEY must be 32 bytes, base64 encoded');
+// Preserve the original base64 key format while also supporting securely
+// auto-generated, high-entropy secrets from infrastructure providers.
+const decodedKey = Buffer.from(env.TOKEN_ENCRYPTION_KEY, 'base64');
+const key = decodedKey.length === 32 ? decodedKey :
+  crypto.createHash('sha256').update(env.TOKEN_ENCRYPTION_KEY, 'utf8').digest();
+if (decodedKey.length !== 32 && env.TOKEN_ENCRYPTION_KEY.length < 32)
+  throw Error('TOKEN_ENCRYPTION_KEY must be at least 32 random characters or 32 base64-decoded bytes');
 const pool = new Pool({ connectionString: env.DATABASE_URL, ssl: env.PGSSL === 'true' ? {rejectUnauthorized:false} : undefined });
 const scope = [
   'https://www.googleapis.com/auth/gmail.modify',
@@ -127,7 +134,10 @@ async function handler(req, res) {
     });
     return res.end();
   }
-  if (pathname === '/health' && req.method === 'GET') return json(res, 200, {status:'ok'},origin);
+  if (pathname === '/health' && req.method === 'GET') {
+    try { await pool.query('SELECT 1'); return json(res,200,{status:'ok'},origin); }
+    catch { return json(res,503,{status:'unavailable'},origin); }
+  }
   if (pathname === '/auth/start' && req.method === 'GET') {
     const state = random();
     const verifier = random();
