@@ -47,6 +47,9 @@ Sent from the Inbox Reborn demo.`,timestamp:e-o*3600*1e3,bundle:a,unread:s,pinne
 .compact-action:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
 @media(max-width:760px){.compact-heading,.compact-message{grid-template-columns:76px 61px 105px minmax(120px,1fr) 0 110px;column-gap:7px;min-width:510px}.compact-heading,.compact-message{padding-left:9px;padding-right:9px}.compact-action{font-size:10px;padding:3px 4px}}
 .compact-folder-heading{margin-bottom:12px}.compact-folder-heading h1{margin-bottom:0}
+/* Keep the mobile quick-compose shortcut, but remove the extra orange desktop button. */
+.fab{display:none}
+@media(width<=780px){.fab{display:flex}}
 /* Sidebar: compact compose/email header and full-height navigation. */
 .sidebar{height:calc(100dvh - 78px);min-height:calc(100dvh - 78px);padding-top:14px;align-self:stretch}
 .sidebar-topline{display:flex;align-items:center;gap:5px;width:100%;margin-bottom:3px;min-height:33px}
