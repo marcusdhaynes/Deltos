@@ -24,6 +24,37 @@ jobs:
         with:
           name: deltos-windows
           path: src-tauri/target/release/bundle/**
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf
+      - run: npm install --no-audit --no-fund
+      - run: npm run icons
+      - run: npm run desktop:build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deltos-linux
+          path: src-tauri/target/release/bundle/**
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm install --no-audit --no-fund
+      - run: npm run icons
+      - run: npm run desktop:build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deltos-macos
+          path: src-tauri/target/release/bundle/**
   android:
     runs-on: ubuntu-latest
     steps:
