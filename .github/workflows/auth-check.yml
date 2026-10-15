@@ -1,0 +1,20 @@
+name: Auth backend checks
+on:
+  push:
+    paths:
+      - 'auth-server/**'
+      - '.github/workflows/auth-check.yml'
+  workflow_dispatch:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check auth server syntax
+        run: node --check auth-server/server.mjs
+      - name: Verify backend package manifest
+        run: node -e "const p=require('./auth-server/package.json'); if(!p.dependencies.pg || !p.scripts.start) process.exit(1)"
