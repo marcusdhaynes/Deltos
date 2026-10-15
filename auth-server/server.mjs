@@ -62,7 +62,12 @@ async function tokenRequest(body) {
     body:new URLSearchParams(body)
   });
   const data = await response.json();
-  if (!response.ok) throw Error('Google token exchange failed: ' + String(data.error || response.status));
+  if (!response.ok) {
+    const error = new Error('Google token exchange failed');
+    error.code = typeof data.error === 'string' ? data.error : '';
+    error.googleStatus = response.status;
+    throw error;
+  }
   return data;
 }
 async function sessionToken(sessionId) {
@@ -88,7 +93,14 @@ async function sessionToken(sessionId) {
         });
       } catch (error) {
         await db.query('ROLLBACK');
-        throw Error('Google refresh token is no longer valid. Reconnect Gmail once to renew permission.');
+        // Network problems, 429s and Google 5xxs are NOT revoked grants.
+        // Preserve the durable session, and let the client retry silently.
+        const revoked = error?.code === 'invalid_grant';
+        const failure = new Error(revoked
+          ? 'Gmail permission expired or was revoked. Sign in once to reconnect.'
+          : 'Google is temporarily unavailable. Your Gmail connection is saved; try again shortly.');
+        failure.statusCode = revoked ? 401 : 503;
+        throw failure;
       }
       accessToken = replacement.access_token;
       expiresAt = Date.now() + Math.max(60, Number(replacement.expires_in || 3600) - 60) * 1000;
@@ -182,7 +194,9 @@ async function handler(req, res) {
       if (!fresh) return json(res,401,{error:'Session expired; reconnect Gmail'},origin);
       return json(res,200,fresh,origin);
     } catch (error) {
-      return json(res,401,{error:error instanceof Error?error.message:'Could not refresh Gmail'},origin);
+      const status = error?.statusCode === 401 ? 401 : 503;
+      return json(res,status,{error:error?.statusCode
+        ? error.message : 'Gmail renewal is temporarily unavailable; your connection is saved.'},origin);
     }
   }
   if (pathname === '/session' && req.method === 'DELETE') {
