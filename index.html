@@ -574,18 +574,15 @@ function rn({message:e,onClose:t,onKeep:n,onBlock:r,onSnooze:i,onDone:a}){return
  const isCurrent=()=>sequence===loadSequence.current&&D.current.folder===folder&&D.current.backend===backend;
  const loadAll=more&&requested==='all';
  const target=loadAll?Infinity:Math.max(1,Math.min(100,Number(requested)||50));
- let cursor=more?current.nextPage:null,total=0,loadedForRequest=[];
+ let cursor=more?current.nextPage:null,total=0;
  if(more&&!cursor)return;
- const showMessages=page=>{
-  if(!isCurrent())return;
-  const merged=more?[...loadedForRequest,...page]:page;
-  const byId=new Map();
-  for(const message of merged)byId.set(message.id,message);
-  const additions=[...byId.values()];
+ const appendMessages=additions=>{
+  if(!isCurrent()||!additions?.length)return;
   s(previous=>{
-   if(!more)return additions;
+   if(!isCurrent())return previous;
    const existing=new Set(previous.map(message=>message.id));
-   return [...previous,...additions.filter(message=>!existing.has(message.id))];
+   const fresh=additions.filter(message=>!existing.has(message.id));
+   return fresh.length?[...previous,...fresh]:previous;
   });
  };
  te(true);
@@ -594,11 +591,16 @@ function rn({message:e,onClose:t,onKeep:n,onBlock:r,onSnooze:i,onDone:a}){return
   do{
    if(!isCurrent())return;
    const needed=loadAll?100:Math.min(100,target-total);
+   let alreadyShown=0;
    const result=await backend.list(folder,{...current.sf,text:current.search},cursor,
-    batch=>showMessages(batch),needed);
+    batch=>{
+     const unseen=batch.slice(alreadyShown);
+     alreadyShown=batch.length;
+     appendMessages(unseen);
+    },needed);
    if(!isCurrent())return;
-   const existingInRequest=new Set(loadedForRequest.map(message=>message.id));
-   loadedForRequest.push(...result.messages.filter(message=>!existingInRequest.has(message.id)));
+   // Demo and other backends can return their results without progress events.
+   appendMessages(result.messages.slice(alreadyShown));
    total+=result.messages.length;
    cursor=result.nextPage||null;
    D.current.nextPage=cursor;
