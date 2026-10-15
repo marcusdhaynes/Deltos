@@ -8,3 +8,5 @@ The current visual/behavioral baseline is preserved in `index.html` (a prebuilt 
 GitHub Pages: enable Settings → Pages → Build and deployment → **GitHub Actions**. The Pages workflow publishes the Vite build at `/Deltos/`. A direct `index.html` on main also supports branch-based Pages publishing.
 
 Native builds and behavior have not yet been verified. Do not treat CI configuration as proof of successful builds. The source HTML is intentionally preserved to avoid untested UI changes.
+
+Deployment triggered after GitHub Pages was enabled.
