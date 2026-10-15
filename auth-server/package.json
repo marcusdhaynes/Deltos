@@ -1,0 +1,17 @@
+{
+  "name": "deltos-auth-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Confidential Google OAuth2 refresh-token backend for Deltos",
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  }
+}
