@@ -28,7 +28,7 @@ Sent from the Inbox Reborn demo.`,timestamp:e-o*3600*1e3,bundle:a,unread:s,pinne
 .google-account-login{background:var(--paper);border:1px solid var(--line);color:var(--ink)}.google-account-login svg{width:23px;height:23px}.deltos-inbox-compact{width:100%;min-width:0}
 /* Compact Inbox — keep text columns left and message actions flush right. */
 .deltos-inbox-compact{width:100%;min-width:0;overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--paper);box-shadow:var(--shadow)}
-.compact-heading,.compact-message{display:grid;grid-template-columns:92px 78px minmax(112px,175px) minmax(145px,250px) minmax(12px,1fr) 170px;column-gap:9px;align-items:center;min-width:690px}
+.compact-heading,.compact-message{display:grid;grid-template-columns:78px 66px minmax(105px,150px) minmax(135px,215px) minmax(12px,1fr) 132px;column-gap:7px;align-items:center;min-width:620px}
 .compact-heading{padding:8px 12px 7px;background:var(--soft);border-bottom:1px solid var(--line)}
 .compact-sort{border:0;background:transparent;color:var(--muted);font-size:11px;font-weight:730;text-align:left;padding:5px 0;white-space:nowrap;letter-spacing:.2px}
 .compact-sort.active{color:var(--blue)}.compact-sort:not(:disabled):hover{color:var(--ink)}.compact-sort:disabled{opacity:1;cursor:default}
@@ -40,12 +40,12 @@ Sent from the Inbox Reborn demo.`,timestamp:e-o*3600*1e3,bundle:a,unread:s,pinne
 .compact-date,.compact-time{color:var(--muted);font-variant-numeric:tabular-nums;font-size:11.5px}
 .compact-sender{font-weight:600}.compact-subject{color:var(--ink);font-weight:520}
 .compact-preview{grid-column:1/5;grid-row:2;color:var(--muted);font-size:11.5px;padding-top:1px}
-.compact-actions{grid-column:6;grid-row:1/3;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;align-self:center}
-.compact-action{min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--muted);font-size:10.5px;font-weight:650;padding:6px 3px;line-height:1.2;transition:background .15s,color .15s,border-color .15s}
+.compact-actions{grid-column:6;grid-row:1/3;display:grid;grid-template-columns:repeat(2,max-content);justify-content:end;gap:5px;align-self:center}
+.compact-action{min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--muted);font-size:10.5px;font-weight:650;padding:6px 5px;line-height:1.2;transition:background .15s,color .15s,border-color .15s}
 .compact-action:hover{color:var(--blue);border-color:var(--blue);background:var(--accent)}
 .compact-action-reply{background:var(--accent);border-color:color-mix(in srgb,var(--blue) 20%,var(--line));color:var(--blue)}
 .compact-action:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
-@media(max-width:760px){.compact-heading,.compact-message{grid-template-columns:84px 72px 124px minmax(138px,1fr) 8px 142px;column-gap:7px;min-width:660px}.compact-heading,.compact-message{padding-left:9px;padding-right:9px}.compact-action{font-size:10px;padding:5px 2px}}
+@media(max-width:760px){.compact-heading,.compact-message{grid-template-columns:76px 63px 110px minmax(125px,1fr) 8px 128px;column-gap:6px;min-width:590px}.compact-heading,.compact-message{padding-left:9px;padding-right:9px}.compact-action{font-size:10px;padding:5px 2px}}
 </style>
   </head>
   <body>
