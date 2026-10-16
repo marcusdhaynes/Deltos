@@ -1091,6 +1091,17 @@ Me=(0,f.useCallback)(async e=>{let t=D.current.backend;if(t){w({type:`detail`,me
 }
 
 .deltos-account-buttons{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+/* The top search field consumes the full available header width.
+   Header gap provides identical breathing room on its left and right. */
+.header > .deltos-search{
+ flex:1 1 0;
+ min-width:0;
+ max-width:none;
+}
+.header > .header-right{
+ flex:0 0 auto;
+ margin-left:0;
+}
 /* Pagination fits a single compact action-button-height row. */
 .deltos-load-row{
  display:flex;align-items:center;justify-content:space-between;
