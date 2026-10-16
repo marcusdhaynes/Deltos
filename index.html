@@ -85,7 +85,13 @@ function ze(e){let t=``;for(let n of e)t+=String.fromCharCode(n);return btoa(t).
  let e=Ie();
  if(deltosAuthBackend()&&deltosSessionGet()){
   if(e?.access_token&&Date.now()+180000<Number(e.expires_at||0))return e.access_token;
-  return deltosBackendToken();
+  try{return await deltosBackendToken()}
+  catch(error){
+   // A temporary backend/network outage must not interrupt a still-valid Google token.
+   // Never use an old token if the backend has invalidated the saved session.
+   if(deltosSessionGet()&&e?.access_token&&Date.now()<Number(e.expires_at||0))return e.access_token;
+   throw error;
+  }
  }
  if(!e)throw deltosReconnectRequired();
  if(Date.now()>=Number(e.expires_at||0)){
