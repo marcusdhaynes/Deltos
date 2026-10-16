@@ -28,9 +28,12 @@ function deltosLooksLikeHtml(value){
 }
 function deltosHtmlAsText(html){
  try{
-  const doc=new DOMParser().parseFromString(String(html||''),'text/html');
-  doc.querySelectorAll('script,style,template,noscript').forEach(el=>el.remove());
-  return (doc.body?.innerText||doc.body?.textContent||'').replace(/\n{3,}/g,'\n\n').trim().slice(0,350000);
+  // <template> is inert and never fetches an email's external resources.
+  const holder=document.createElement('template');
+  holder.innerHTML=String(html||'');
+  holder.content.querySelectorAll('script,style,template,noscript').forEach(el=>el.remove());
+  holder.content.querySelectorAll('br,p,div,tr,li,h1,h2,h3,h4').forEach(el=>el.after(document.createTextNode('\n')));
+  return (holder.content.textContent||'').replace(/\n{3,}/g,'\n\n').trim().slice(0,350000);
  }catch{return String(html||'').replace(/<[^>]+>/g,' ').trim().slice(0,350000)}
 }
 function deltosReadMime(root){
@@ -716,14 +719,17 @@ function DeltosDrafts({backend,search,refreshTick,onEdit,onNotify}){
 /* Render untrusted email in a sandboxed document, never in the application DOM.
    Scripts/forms are disabled even when images are explicitly enabled. */
 function deltosSafeEmailHtml(raw,showImages){
- const parsed=new DOMParser().parseFromString(String(raw||''),'text/html');
- parsed.querySelectorAll('script,iframe,frame,frameset,object,embed,form,input,textarea,select,button,meta,base,link,video,audio,source,svg,math,canvas,template').forEach(el=>el.remove());
+ // Parse inside an inert template so remote URLs cannot be fetched before
+ // the sandboxed document's Content-Security-Policy takes effect.
+ const parsed=document.createElement('template');
+ parsed.innerHTML=String(raw||'');
+ parsed.content.querySelectorAll('script,iframe,frame,frameset,object,embed,form,input,textarea,select,button,meta,base,link,video,audio,source,svg,math,canvas,template').forEach(el=>el.remove());
  const allowedImage=url=>{
   const candidate=String(url||'').trim();
   return /^data:image\/(?:png|gif|jpeg|webp);base64,/i.test(candidate)||
    (showImages&&/^https:\/\//i.test(candidate));
  };
- parsed.querySelectorAll('*').forEach(el=>{
+ parsed.content.querySelectorAll('*').forEach(el=>{
   for(const attr of [...el.attributes]){
    const name=attr.name.toLowerCase(),value=attr.value;
    if(name.startsWith('on')||['srcdoc','formaction','action','srcset','ping','autofocus','integrity'].includes(name)){
@@ -747,17 +753,26 @@ function deltosSafeEmailHtml(raw,showImages){
  });
  const csp="default-src 'none'; script-src 'none'; object-src 'none'; frame-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'; style-src 'unsafe-inline'; img-src "+(showImages?"https: data:":"data:")+"; font-src "+(showImages?"https: data:":"data:")+"; ";
  // Always insert CSP first; messages cannot weaken the policy.
- const cspMeta=parsed.createElement('meta');
- cspMeta.setAttribute('http-equiv','Content-Security-Policy');
- cspMeta.setAttribute('content',csp);
- parsed.head.insertBefore(cspMeta,parsed.head.firstChild);
- const viewport=parsed.createElement('meta');
- viewport.setAttribute('name','viewport');viewport.setAttribute('content','width=device-width, initial-scale=1');
- parsed.head.appendChild(viewport);
- const reset=parsed.createElement('style');
- reset.textContent='html,body{height:auto!important;min-height:0!important;overflow:visible!important;}body{overflow-wrap:anywhere;}img{max-width:100%;height:auto;}';
- parsed.head.appendChild(reset);
- return '<!doctype html>'+parsed.documentElement.outerHTML;
+ const styles=[...parsed.content.querySelectorAll('style')];
+ const styleHtml=styles.map(el=>el.outerHTML).join('');
+ styles.forEach(el=>el.remove());
+ // The original body/html tags disappear when parsed as a template. Carry
+ // forward presentation attributes without exposing any of their handlers.
+ const escapeAttr=value=>String(value||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+ const direction=String(raw||'').match(/<html\b[^>]*\bdir\s*=\s*["']?(rtl|ltr|auto)\b/i)?.[1]||'ltr';
+ const bodyTag=String(raw||'').match(/<body\b[^>]*>/i)?.[0]||'';
+ const bodyHolder=document.createElement('template');
+ bodyHolder.innerHTML='<div '+bodyTag.replace(/^<body\b/i,'').replace(/>$/,'')+'></div>';
+ const bodyNode=bodyHolder.content.querySelector('div');
+ const styleAttr=bodyNode?.getAttribute('style')||'';
+ const bgColor=bodyNode?.getAttribute('bgcolor')||'';
+ const bodyExtras=(styleAttr?' style="'+escapeAttr(styleAttr)+'"':'')+(bgColor?' bgcolor="'+escapeAttr(bgColor)+'"':'');
+ const reset='html,body{height:auto!important;min-height:0!important;overflow:visible!important;}body{overflow-wrap:anywhere;}img{max-width:100%;height:auto;}';
+ return '<!doctype html><html dir="'+direction+'"><head>'+
+  '<meta http-equiv="Content-Security-Policy" content="'+escapeAttr(csp)+'">'+
+  '<meta name="viewport" content="width=device-width, initial-scale=1">'+
+  styleHtml+'<style>'+reset+'</style></head><body'+bodyExtras+'>'+
+  parsed.innerHTML+'</body></html>';
 }
 function DeltosEmailBody({message}){
  const html=message?.html|| (deltosLooksLikeHtml(message?.body)?message.body:'');
