@@ -29,4 +29,5 @@ services:
 databases:
   - name: deltos-auth-db
     plan: 0.1c-256mb
+    diskSizeGB: 1  # Smallest persistent disk; expandable later. Avoid charging for an oversized default.
     ipAllowList: []  # Keep the database private to Render's internal network.
