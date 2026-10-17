@@ -18,9 +18,36 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Install official Render CLI
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install YAML and JSON Schema validators
+        run: python -m pip install --disable-pip-version-check --quiet pyyaml jsonschema
+      - name: Validate against Render's official public Blueprint schema
+        run: |
+          python - <<'PY'
+          import json, urllib.request, yaml
+          from jsonschema import validators
+          with urllib.request.urlopen('https://render.com/schema/render.yaml.json',timeout=20) as r:
+              schema=json.load(r)
+          with open('render.yaml',encoding='utf-8') as f:
+              blueprint=yaml.safe_load(f)
+          Validator=validators.validator_for(schema)
+          Validator.check_schema(schema)
+          errors=sorted(Validator(schema).iter_errors(blueprint),key=lambda e:list(map(str,e.path)))
+          for error in errors:
+              print(f"render.yaml {'/'.join(map(str,error.path))}: {error.message}")
+          if errors:
+              raise SystemExit(1)
+          print("Official Render Blueprint JSON Schema: passed")
+          PY
+      - name: Install Render CLI for workspace-aware semantic validation
+        if: ${{ vars.RENDER_WORKSPACE_ID != '' }}
         run: |
           curl -fsSL https://raw.githubusercontent.com/render-oss/cli/main/bin/install.sh | sh
-          echo "$HOME/.render/bin" >> "$GITHUB_PATH"
-      - name: Validate Render resources
-        run: render blueprints validate render.yaml
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Validate against connected Render workspace
+        if: ${{ vars.RENDER_WORKSPACE_ID != '' }}
+        env:
+          RENDER_WORKSPACE_ID: ${{ vars.RENDER_WORKSPACE_ID }}
+        run: render blueprints validate render.yaml --workspace "$RENDER_WORKSPACE_ID"
