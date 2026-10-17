@@ -8,12 +8,16 @@ The repository root now includes `render.yaml`. In the **Render dashboard**, cre
 
 Only the external identity-provider steps remain:
 
-1. During Blueprint setup, securely enter `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from the Google Cloud **Web application** OAuth client. Never commit them.
-2. Once Render assigns its HTTPS URL, add `https://YOUR-RENDER-SERVICE.onrender.com/auth/callback` to that client's **Authorized redirect URIs** in Google Cloud. Use the actual assigned URL. Complete Google's required OAuth publication / verification; OAuth Testing mode can expire sensitive-scope refresh tokens after seven days.
-3. In GitHub repository **Settings → Secrets and variables → Actions → Variables**, create `DELTOS_AUTH_BACKEND_URL` containing the Render service's HTTPS origin (without a path). Re-run the **Publish Deltos web** workflow or push a new commit. The Vite build safely injects this origin into the existing HTML meta tag.
-4. Verify `https://YOUR-RENDER-SERVICE.onrender.com/health` reports `{"status":"ok"}`. Then sign in to Deltos one more time. Further token renewals are handled in the background with no popup, until Google revokes permission or the stored session expires.
+1. During Blueprint setup, securely enter **only** `GOOGLE_CLIENT_SECRET` from the Google Cloud **Web application** OAuth client matching the public client ID already included in Deltos (`340468814938-l3nubq3sen9e6h5ahbf0d7ptftlalndg.apps.googleusercontent.com`). The client ID is public and prefilled in `render.yaml`. **Never put the client secret in GitHub or ChatGPT.** If you cannot administer the OAuth client with that ID, create your own Web application client and update *both* the public frontend client ID and Blueprint client ID before deploying.
+2. The Blueprint provisions **paid web hosting and paid persistent Postgres**, with Postgres access restricted to the private Render network. Carefully approve the estimated recurring costs in Render.
+3. Once Render assigns its HTTPS URL, add `https://YOUR-RENDER-SERVICE.onrender.com/auth/callback` to that client's **Authorized redirect URIs** in Google Cloud. Use the actual assigned URL. Complete Google's required OAuth publication / verification; OAuth Testing mode can expire sensitive-scope refresh tokens after seven days.
+4. In GitHub repository **Settings → Secrets and variables → Actions → Variables**, create `DELTOS_AUTH_BACKEND_URL` containing the Render service's HTTPS origin (without a path). Re-run the **Publish Deltos web** workflow or push a new commit. The Vite build safely injects this origin into the existing HTML meta tag.
+5. Verify `https://YOUR-RENDER-SERVICE.onrender.com/health` reports `{"status":"ok"}`. Then sign in to Deltos one more time. Further token renewals are handled in the background with no popup, until Google revokes permission or the stored session expires.
 
 On Render, `AUTH_BASE_URL` is inferred from the provider's `RENDER_EXTERNAL_URL`. For other hosts, set it explicitly.
+
+
+> **For public Google OAuth verification:** Google's domain verification policy normally requires domains you control, not shared `github.io` or `onrender.com` hosts. Private test users can use the current hosts temporarily, but a verified production launch should plan a domain you own for both the website and OAuth callback. See [`OAUTH_VERIFICATION.md`](../OAUTH_VERIFICATION.md).
 
 ## Deployment (Render)
 
