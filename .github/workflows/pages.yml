@@ -25,6 +25,10 @@ jobs:
       - run: npm run build
         env:
           DELTOS_AUTH_BACKEND_URL: ${{ vars.DELTOS_AUTH_BACKEND_URL }}
+      - name: Verify deployed Gmail authentication when configured
+        run: node auth-server/verify-deployment.mjs
+        env:
+          DELTOS_AUTH_BACKEND_URL: ${{ vars.DELTOS_AUTH_BACKEND_URL }}
       - name: Install Chromium for release gate
         run: npx playwright install --with-deps chromium
       - name: Gate release on browser regressions
