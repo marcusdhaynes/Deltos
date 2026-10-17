@@ -190,6 +190,14 @@ async function handler(req, res) {
   return json(res,404,{error:'Not found'},origin);
 }
 await pool.query("CREATE TABLE IF NOT EXISTS deltos_sessions (session_hash TEXT PRIMARY KEY, email TEXT NOT NULL, refresh_cipher TEXT NOT NULL, access_cipher TEXT, access_expires_ms BIGINT, last_used TIMESTAMPTZ, expires_at TIMESTAMPTZ NOT NULL)");
+// Remove stale encrypted grants rather than leaving expired sessions in storage.
+const purgeExpiredSessions = async () => {
+  try { await pool.query('DELETE FROM deltos_sessions WHERE expires_at<=NOW()'); }
+  catch { console.error('Expired session cleanup failed'); }
+};
+void purgeExpiredSessions();
+const sessionCleanupTimer = setInterval(purgeExpiredSessions,6*60*60*1000);
+sessionCleanupTimer.unref?.();
 const server = http.createServer((req,res) => {
   Promise.resolve(handler(req,res)).catch(error => {
     console.error('Request error:', error instanceof Error ? error.message : 'Unknown error');
