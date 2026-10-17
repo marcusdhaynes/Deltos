@@ -6,7 +6,10 @@ test('Starred is above Opened, Gmail-style stars toggle, and groups preserve sou
  const nav=await page.locator('.sidebar .nav-button').allTextContents();
  expect(nav.indexOf('Starred')).toBeGreaterThan(-1);
  expect(nav.indexOf('Starred')).toBeLessThan(nav.indexOf('Opened'));
- const row=page.locator('.compact-message').filter({has:page.locator('.deltos-star[aria-pressed="false"]')}).first();
+ const candidate=page.locator('.compact-folder-inbox .compact-message').filter({has:page.locator('.deltos-star[aria-pressed="false"]')}).first();
+ const id=await candidate.getAttribute('data-id');
+ expect(id).toBeTruthy();
+ const row=page.locator('.compact-folder-inbox .compact-message[data-id="'+id+'"]');
  const star=row.locator('.deltos-star');
  await expect(star).toBeVisible();
  const subject=await row.locator('.compact-subject').innerText();
