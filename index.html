@@ -258,8 +258,21 @@ async removeRule(filterId){
  await this.call('/settings/filters/'+encodeURIComponent(filterId),{method:'DELETE'});
  for(const operation of this.journal.ops.filter(item=>item.filter_id===filterId))
   this.journal.setStatus(operation.id,'unblocked',false);
-}async compose(e,t,n,c=``,b=``){let r=e.split(/[,\n;]+/).map(e=>e.trim()).filter(Boolean);if(!r.length||r.length>15)throw Error(`Enter one or more valid recipient addresses`);let i=[`To: ${r.join(`, `)}`,...(c.trim()?[`Cc: ${c.replace(/[\r\n]/g,`, `)}`]:[]),...(b.trim()?[`Bcc: ${b.replace(/[\r\n]/g,`, `)}`]:[]),`Subject: ${t.replace(/[\r\n]/g,` `)}`,`Content-Type: text/plain; charset=utf-8`,``,n].join(`\r
-`),a=btoa(String.fromCharCode(...new TextEncoder().encode(i))).replace(/\+/g,`-`).replace(/\//g,`_`).replace(/=+$/,``);return await this.call(`/messages/send`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({raw:a})}),{demo:!1}}async reply(e,t){let n=await this.details(e),r=n.from,i=n.subject;/^re:/i.test(i)||(i=`Re: ${i}`);let a=[`To: ${r}`,`Subject: ${i}`,`In-Reply-To: ${n.id}`,`References: ${n.id}`,`Content-Type: text/plain; charset=utf-8`,``,t].join(`\r
+}async compose(to,subject,body,cc='',bcc=''){
+  const split=value=>String(value||'').split(/[,;\n]+/).map(address=>address.trim()).filter(Boolean);
+  const recipientGroups=[split(to),split(cc),split(bcc)];
+  const recipients=recipientGroups.flat();
+  if(!recipientGroups[0].length||recipients.length>50)
+    throw Error('Enter at least one recipient (maximum 50 total).');
+  for(const address of recipients){
+    if(!_.test(address))throw Error('Invalid recipient email address: '+address);
+  }
+  const raw=deltosDraftRaw(recipientGroups[0].join(', '),String(subject||''),String(body||''),
+    recipientGroups[1].join(', '),recipientGroups[2].join(', '));
+  await this.call('/messages/send',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({raw})});
+  return {demo:false};
+ }async reply(e,t){let n=await this.details(e),r=n.from,i=n.subject;/^re:/i.test(i)||(i=`Re: ${i}`);let a=[`To: ${r}`,`Subject: ${i}`,`In-Reply-To: ${n.id}`,`References: ${n.id}`,`Content-Type: text/plain; charset=utf-8`,``,t].join(`\r
 `),o=btoa(String.fromCharCode(...new TextEncoder().encode(a))).replace(/\+/g,`-`).replace(/\//g,`_`).replace(/=+$/,``);await this.call(`/messages/send`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({raw:o,threadId:n.threadId})})}async saveDraft(e,t,n,c=``,b=``){let r=[`To: ${e.replace(/[\r\n]/g,`, `)}`,...(c.trim()?[`Cc: ${c.replace(/[\r\n]/g,`, `)}`]:[]),...(b.trim()?[`Bcc: ${b.replace(/[\r\n]/g,`, `)}`]:[]),`Subject: ${t.replace(/[\r\n]/g,` `)}`,`Content-Type: text/plain; charset=utf-8`,``,n].join(`\r
 `),i=btoa(String.fromCharCode(...new TextEncoder().encode(r))).replace(/\+/g,`-`).replace(/\//g,`_`).replace(/=+$/,``);await this.call(`/drafts/create`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({message:{raw:i}})})}disconnect(){const base=deltosAuthBackend(),session=deltosSessionGet();deltosSessionSet('');Re();deltosForgetAccount();if(base&&session)void fetch(base+'/session',{method:'DELETE',headers:{Authorization:'Bearer '+session}}).catch(()=>{})}},dt=`inbox-scheduled-sends`;function ft(){try{let e=localStorage.getItem(dt);if(!e)return[];let t=JSON.parse(e);return Array.isArray(t)?t:[]}catch{return[]}}function pt(e){try{localStorage.setItem(dt,JSON.stringify(e))}catch{}}function mt(e){let t={...e,id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,created:Date.now()};return pt([...ft(),t]),t}function ht(e){pt(ft().filter(t=>t.id!==e))}function gt(e=Date.now()){return ft().filter(t=>t.sendAt<=e)}
 /* Drafts are stored in Gmail when connected and in local sample storage in demo mode. */
