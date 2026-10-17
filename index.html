@@ -1345,6 +1345,41 @@ Me=(0,f.useCallback)(async e=>{let t=D.current.backend;if(t){w({type:`detail`,me
 .deltos-load-row .deltos-load-count:hover:not(:disabled){border-color:var(--blue);color:var(--blue);background:var(--accent)}
 .deltos-load-row :disabled{opacity:.5;cursor:wait}
 @media(max-width:760px){.deltos-load-row{padding:4px 9px}}
+
+/* Compact, always-accessible Gmail stars at the upper left of every email. */
+.deltos-star{position:absolute;z-index:8;top:8px;left:8px;display:inline-flex;align-items:center;justify-content:center;width:21px;height:21px;padding:0;border:0;border-radius:7px;color:var(--muted);background:transparent;cursor:pointer;flex-shrink:0;transition:color .16s,transform .16s,background .16s}
+.deltos-star:hover{color:#d69b25;background:color-mix(in srgb,#f1c359 14%,var(--paper));transform:scale(1.1)}
+.deltos-star.is-starred{color:#dea62a}
+.deltos-star.is-starred svg{fill:currentColor}
+.deltos-star:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+.deltos-inbox-compact .compact-heading,.deltos-inbox-compact .compact-message{padding-left:36px}
+.deltos-inbox-compact .compact-message{overflow:hidden}
+.deltos-inbox-compact .compact-message .deltos-star{top:9px;left:9px}
+.deltos-inbox-compact .compact-message .compact-actions{position:relative;z-index:9}
+/* Full four-axis pointer gestures on Inbox rows; other folders still scroll. */
+.deltos-inbox-compact .deltos-four-way{touch-action:none;user-select:none;-webkit-user-select:none}
+.deltos-compact-stamp{position:absolute;z-index:7;top:50%;left:50%;pointer-events:none;white-space:nowrap;display:flex;align-items:center;gap:5px;padding:4px 11px;border:2px solid currentColor;border-radius:7px;background:color-mix(in srgb,var(--paper) 94%,transparent);text-transform:uppercase;font-size:13px;font-weight:850;letter-spacing:1px;box-shadow:0 1px 9px #0002}
+.deltos-compact-stamp.stamp-left{color:var(--red)}
+.deltos-compact-stamp.stamp-right{color:var(--green)}
+.deltos-compact-stamp.stamp-up{color:var(--blue)}
+.deltos-compact-stamp.stamp-down{color:#e8933c}
+/* Triage star belongs to the sender header, ahead of the avatar. */
+.deck-card-head>.deltos-star-card{position:relative;inset:auto;width:27px;height:27px;border-radius:9px;margin-left:-5px;align-self:center}
+.deck-card-head>.deltos-star-card svg{width:20px;height:20px}
+.deck-card-head .deck-id{min-width:0}
+/* Starred uses one subtle group header per original mailbox, not a flat pile. */
+.deltos-starred-groups{display:flex;flex-direction:column;gap:15px;min-width:0}
+.deltos-starred-section{background:var(--paper);border:1px solid var(--line);border-radius:13px;overflow:hidden;box-shadow:var(--shadow)}
+.deltos-starred-group-heading{display:flex;align-items:center;gap:10px;padding:10px 15px;border-bottom:1px solid var(--line);background:var(--soft)}
+.deltos-starred-group-heading h2{font-size:13px;line-height:1.4;font-weight:750;letter-spacing:.1px;margin:0;color:var(--ink)}
+.deltos-starred-group-icon{display:inline-flex;align-items:center;justify-content:center;color:var(--blue);width:26px;height:26px;border-radius:8px;background:var(--accent)}
+.deltos-starred-count{margin-left:auto;color:var(--muted);background:var(--paper);border:1px solid var(--line);border-radius:15px;padding:2px 8px;font-size:10px;font-weight:750}
+.deltos-starred-triage .deltos-starred-group-icon{color:#329b85;background:#dff5ee}
+.deltos-starred-opened .deltos-starred-group-icon{color:#8f65bc;background:#f1eafd}
+.deltos-starred-drafts .deltos-starred-group-icon{color:#3f7bc8;background:#e7effb}
+.deltos-starred-trash .deltos-starred-group-icon{color:#c77c51;background:#fbebdf}
+.deltos-starred-section .deltos-inbox-compact{border:0;border-radius:0;box-shadow:none}
+@media(max-width:760px){.deltos-inbox-compact .compact-heading,.deltos-inbox-compact .compact-message{padding-left:35px}.deck-card-head>.deltos-star-card{margin-left:-9px;width:24px;height:24px}.deck-card-head{gap:8px}}
 </style>
   </head>
   <body>
