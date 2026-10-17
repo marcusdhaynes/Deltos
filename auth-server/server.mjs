@@ -1,6 +1,7 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { Pool } from 'pg';
+import { createSessionToken } from './session-token.mjs';
 
 const env = process.env;
 const required = ['GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','DATABASE_URL','TOKEN_ENCRYPTION_KEY'];
@@ -66,7 +67,7 @@ const cookies = raw => Object.fromEntries((raw || '').split(';').map(item => {
 async function tokenRequest(body) {
   const response = await fetch('https://oauth2.googleapis.com/token', {
     method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
-    body:new URLSearchParams(body)
+    body:new URLSearchParams(body), signal:AbortSignal.timeout(15000)
   });
   const data = await response.json();
   if (!response.ok) {
@@ -77,49 +78,19 @@ async function tokenRequest(body) {
   }
   return data;
 }
-async function sessionToken(sessionId) {
-  const db = await pool.connect();
-  try {
-    await db.query('BEGIN');
-    const results = await db.query(
-      "SELECT * FROM deltos_sessions WHERE session_hash=$1 AND expires_at>NOW() FOR UPDATE",
-      [hash(sessionId)]
-    );
-    const row = results.rows[0];
-    if (!row) { await db.query('ROLLBACK'); return null; }
-    let accessToken = row.access_cipher ? decrypt(row.access_cipher) : '';
-    let expiresAt = Number(row.access_expires_ms || 0);
-    if (!accessToken || expiresAt < Date.now() + 90000) {
-      let replacement;
-      try {
-        replacement = await tokenRequest({
-          client_id:env.GOOGLE_CLIENT_ID,
-          client_secret:env.GOOGLE_CLIENT_SECRET,
-          grant_type:'refresh_token',
-          refresh_token:decrypt(row.refresh_cipher)
-        });
-      } catch (error) {
-        await db.query('ROLLBACK');
-        // Network problems, 429s and Google 5xxs are NOT revoked grants.
-        // Preserve the durable session, and let the client retry silently.
-        const revoked = error?.code === 'invalid_grant';
-        const failure = new Error(revoked
-          ? 'Gmail permission expired or was revoked. Sign in once to reconnect.'
-          : 'Google is temporarily unavailable. Your Gmail connection is saved; try again shortly.');
-        failure.statusCode = revoked ? 401 : 503;
-        throw failure;
-      }
-      accessToken = replacement.access_token;
-      expiresAt = Date.now() + Math.max(60, Number(replacement.expires_in || 3600) - 60) * 1000;
-      await db.query('UPDATE deltos_sessions SET access_cipher=$2, access_expires_ms=$3 WHERE session_hash=$1',
-        [hash(sessionId), encrypt(accessToken), expiresAt]);
-    }
-    await db.query("UPDATE deltos_sessions SET last_used=NOW(), expires_at=NOW()+INTERVAL '90 days' WHERE session_hash=$1",
-      [hash(sessionId)]);
-    await db.query('COMMIT');
-    return {access_token:accessToken,expires_at:expiresAt,email:row.email};
-  } finally { db.release(); }
-}
+const sessionToken = createSessionToken({
+  pool,
+  encrypt,
+  decrypt,
+  hash,
+  requestRefresh: refreshToken => tokenRequest({
+    client_id:env.GOOGLE_CLIENT_ID,
+    client_secret:env.GOOGLE_CLIENT_SECRET,
+    grant_type:'refresh_token',
+    refresh_token:refreshToken
+  })
+});
+
 async function handler(req, res) {
   const origin = req.headers.origin;
   const pathname = new URL(req.url || '/',base).pathname;
