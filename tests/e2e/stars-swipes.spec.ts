@@ -6,11 +6,12 @@ test('Starred is above Opened, Gmail-style stars toggle, and groups preserve sou
  const nav=await page.locator('.sidebar .nav-button').allTextContents();
  expect(nav.indexOf('Starred')).toBeGreaterThan(-1);
  expect(nav.indexOf('Starred')).toBeLessThan(nav.indexOf('Opened'));
- const unstared=page.locator('.compact-message .deltos-star[aria-pressed="false"]').first();
- await expect(unstared).toBeVisible();
- const subject=await unstared.locator('xpath=..').locator('.compact-subject').innerText();
- await unstared.click();
- await expect(unstared).toHaveAttribute('aria-pressed','true');
+ const row=page.locator('.compact-message').filter({has:page.locator('.deltos-star[aria-pressed="false"]')}).first();
+ const star=row.locator('.deltos-star');
+ await expect(star).toBeVisible();
+ const subject=await row.locator('.compact-subject').innerText();
+ await star.click();
+ await expect(star).toHaveAttribute('aria-pressed','true');
  await page.getByRole('button',{name:'Starred',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Inbox',exact:true})).toBeVisible();
  await expect(page.locator('.deltos-starred-inbox')).toContainText(subject);
@@ -35,6 +36,7 @@ test('Draft stars persist within the mailbox and appear under the Drafts group',
  await expect(group).toBeVisible();
  await expect(group).toContainText('Draft grouping marker');
  await page.reload();
+ await page.getByRole('button',{name:'Starred',exact:true}).click();
  await expect(page.locator('.deltos-starred-drafts')).toContainText('Draft grouping marker');
 });
 
