@@ -1,0 +1,26 @@
+name: Validate Render Blueprint
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'render.yaml'
+      - '.github/workflows/render-blueprint.yml'
+  pull_request:
+    paths:
+      - 'render.yaml'
+      - '.github/workflows/render-blueprint.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  blueprint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install official Render CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/render-oss/cli/main/bin/install.sh | sh
+          echo "$HOME/.render/bin" >> "$GITHUB_PATH"
+      - name: Validate Render resources
+        run: render blueprints validate render.yaml
