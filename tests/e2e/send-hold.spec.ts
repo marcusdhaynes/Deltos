@@ -19,6 +19,14 @@ test('Send is never activated by a tap and requires a full three-second hold',as
  await page.mouse.down();
  await page.waitForTimeout(3150);
  await page.mouse.up();
+ console.log('post-hold status',await page.evaluate(()=>({
+   modals:[...document.querySelectorAll('[role="dialog"]')].map(e=>e.innerText.slice(0,450)),
+   hold:[...document.querySelectorAll('.deltos-hold-button')].map(e=>({
+      disabled:e.disabled,label:e.getAttribute('aria-label'),className:e.className
+   })),
+   toast:document.querySelector('#toast-root')?.innerText,
+   active:document.activeElement?.outerHTML?.slice(0,220)
+ })));
  await expect(form).toBeHidden({timeout:10000});
  await expect(page.getByText('Demo message sent (not delivered to anyone).')).toBeVisible();
  expect(errors).toEqual([]);
