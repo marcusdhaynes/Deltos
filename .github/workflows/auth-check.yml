@@ -15,6 +15,8 @@ jobs:
         with:
           node-version: '20'
       - name: Check auth server syntax
-        run: node --check auth-server/server.mjs
+        run: node --check auth-server/server.mjs && node --check auth-server/session-token.mjs
+      - name: Exercise session renewal and rollback tests
+        run: node --test auth-server/session-token.test.mjs
       - name: Verify backend package manifest
         run: node -e "const p=require('./auth-server/package.json'); if(!p.dependencies.pg || !p.scripts.start) process.exit(1)"
