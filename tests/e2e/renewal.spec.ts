@@ -18,7 +18,7 @@ test('persistent OAuth session silently resumes after access token expiry',async
   );
   await route.fulfill({response,body:html});
  });
- let renewals=0;
+ let renewals=0,disconnects=0;
  await page.route('https://auth.example.invalid/**',async route=>{
   const pathname=new URL(route.request().url()).pathname;
   if(pathname==='/session/token'){
@@ -29,6 +29,7 @@ test('persistent OAuth session silently resumes after access token expiry',async
     email:'tester@example.test'
    }});
   }
+  if(pathname==='/session'&&route.request().method()==='DELETE'){disconnects++;return route.fulfill({json:{disconnected:true}})}
   return route.fulfill({status:404,json:{error:'Not found'}});
  });
  await page.route('**/gmail/v1/users/me/**',async route=>{
@@ -46,5 +47,11 @@ test('persistent OAuth session silently resumes after access token expiry',async
  }));
  expect(values.token).toBe('renewed-from-server');
  expect(values.session).toBe('A'.repeat(43));
+ await page.locator('header .account-button').click();
+ const signOut=page.getByRole('button',{name:'Disconnect'});
+ await expect(signOut).toBeVisible();
+ await signOut.click();
+ await expect.poll(()=>page.evaluate(()=>localStorage.getItem('deltos-auth-session'))).toBeNull();
+ await expect.poll(()=>disconnects).toBe(1);
  expect(errors).toEqual([]);
 });
