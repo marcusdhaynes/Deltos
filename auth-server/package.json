@@ -6,7 +6,8 @@
   "description": "Confidential Google OAuth2 refresh-token backend for Deltos",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check server.mjs"
+    "check": "node --check server.mjs",
+    "test": "node --test session-token.test.mjs"
   },
   "engines": {
     "node": ">=20"
