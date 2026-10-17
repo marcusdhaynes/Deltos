@@ -22,7 +22,7 @@ services:
       - key: TOKEN_ENCRYPTION_KEY
         generateValue: true
       - key: GOOGLE_CLIENT_ID
-        sync: false
+        value: 340468814938-l3nubq3sen9e6h5ahbf0d7ptftlalndg.apps.googleusercontent.com
       - key: GOOGLE_CLIENT_SECRET
         sync: false
 
