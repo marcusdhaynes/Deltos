@@ -1,0 +1,100 @@
+name: Installable Android APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'src-tauri/**'
+      - 'package.json'
+      - 'vite.config.ts'
+      - 'app-icon.svg'
+      - '.github/workflows/android-apk.yml'
+permissions:
+  contents: read
+concurrency:
+  group: deltos-android-apk
+  cancel-in-progress: true
+jobs:
+  apk:
+    name: Build and verify APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+      - name: Install dependencies and app icons
+        run: |
+          npm install --no-audit --no-fund
+          npm run icons
+      - name: Initialize Android and build latest Deltos source
+        run: |
+          npm run android:init
+          npm run android:build
+      - name: Sign APK for Android installation
+        env:
+          KEYSTORE_BASE64: ${{ secrets.DELTOS_ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.DELTOS_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.DELTOS_ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.DELTOS_ANDROID_KEY_ALIAS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p android-output
+          APK=$(find src-tauri/gen/android/app/build/outputs/apk -type f -name '*unsigned.apk' | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "::error::Tauri did not generate a release unsigned APK."
+            exit 1
+          fi
+          TOOLS=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+          if [ -z "$TOOLS" ] || [ ! -x "$TOOLS/apksigner" ] || [ ! -x "$TOOLS/zipalign" ]; then
+            echo "::error::Android build-tools apksigner/zipalign are missing."
+            exit 1
+          fi
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/deltos-signing.jks"
+            export APK_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD"
+            export APK_KEY_PASSWORD="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+            KEY_ALIAS_VALUE="$KEY_ALIAS"
+            echo "Using persistent release signing credentials from GitHub Secrets."
+          else
+            # Installable PRIVATE TEST APK only. New temporary signing key per run.
+            # Install the next test APK cleanly, or supply stable signing secrets.
+            export APK_KEYSTORE_PASSWORD
+            APK_KEYSTORE_PASSWORD="$(openssl rand -hex 24)"
+            export APK_KEY_PASSWORD="$APK_KEYSTORE_PASSWORD"
+            KEY_ALIAS_VALUE="deltos-beta"
+            keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/deltos-signing.jks" \
+              -storetype PKCS12 -storepass "$APK_KEYSTORE_PASSWORD" \
+              -alias "$KEY_ALIAS_VALUE" -keypass "$APK_KEY_PASSWORD" \
+              -keyalg RSA -keysize 3072 -validity 365 \
+              -dname "CN=Deltos Beta,O=Deltos Test"
+            echo "::warning::Signed with a temporary beta key. Future APKs may require uninstalling this test build before installation."
+          fi
+          "$TOOLS/zipalign" -f -p 4 "$APK" "$RUNNER_TEMP/deltos-aligned.apk"
+          "$TOOLS/apksigner" sign \
+            --ks "$RUNNER_TEMP/deltos-signing.jks" \
+            --ks-key-alias "$KEY_ALIAS_VALUE" \
+            --ks-pass env:APK_KEYSTORE_PASSWORD --key-pass env:APK_KEY_PASSWORD \
+            --out android-output/Deltos-Android-Beta.apk "$RUNNER_TEMP/deltos-aligned.apk"
+          "$TOOLS/apksigner" verify --verbose --print-certs android-output/Deltos-Android-Beta.apk
+          test -s android-output/Deltos-Android-Beta.apk
+      - name: Upload verified installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Deltos-Android-Installable-APK
+          path: android-output/Deltos-Android-Beta.apk
+          if-no-files-found: error
+          retention-days: 90
