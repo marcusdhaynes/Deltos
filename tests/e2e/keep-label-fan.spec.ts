@@ -82,6 +82,7 @@ test('The wider fan forms a rounded arc with separated circular targets on deskt
   await row.focus();
   await page.keyboard.press('ArrowRight');
   await expect(page.locator('.deltos-fan-choice')).toHaveCount(5);
+  await expect(page.locator('.deltos-fan-add')).toHaveCSS('left','0px');
   const boxes=await Promise.all(['3','1','new','2','4'].map(async rank=>{
    const selector=rank==='new'?'.deltos-fan-add':'[data-deltos-rank="'+rank+'"]';
    const box=await page.locator(selector).boundingBox();
