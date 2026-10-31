@@ -1,0 +1,26 @@
+
+/* Predictive Read + Keep label fan. This sits above the existing swipe deck. */
+.deltos-fan-layer{position:fixed;inset:0;z-index:9998;pointer-events:none}
+.deltos-fan-stage{position:absolute;width:1px;height:1px;pointer-events:none}
+.deltos-fan-choice{position:absolute;width:86px;height:86px;transform:translate(-50%,-50%) scale(.96);border-radius:50%;padding:8px;border:1px solid rgba(255,255,255,.62);background:color-mix(in srgb,var(--paper,#fff) 86%,#c8dff5);box-shadow:0 12px 33px #142f4f36,inset 0 1px 1px #ffffffa3;color:var(--ink,#263240);font-size:12px;font-weight:740;line-height:1.15;letter-spacing:-.15px;text-align:center;overflow-wrap:anywhere;word-break:normal;display:grid;place-items:center;cursor:pointer;pointer-events:auto;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);transition:transform .13s ease,background .13s ease,box-shadow .13s ease;animation:deltos-fan-pop .16s ease-out both}
+.deltos-fan-choice:hover,.deltos-fan-choice:focus-visible,.deltos-fan-choice.deltos-fan-hot{transform:translate(-50%,-50%) scale(1.12);outline:2px solid #508eea;outline-offset:2px;background:color-mix(in srgb,var(--paper,#fff) 64%,#8bb8fb);box-shadow:0 16px 38px #142f4f50;z-index:5}
+.deltos-fan-choice:disabled{cursor:progress;opacity:.65}
+.deltos-fan-choice[data-deltos-rank="1"]{left:43px;top:-75px;animation-delay:20ms}
+.deltos-fan-choice[data-deltos-rank="2"]{left:43px;top:75px;animation-delay:45ms}
+.deltos-fan-choice[data-deltos-rank="3"]{left:0;top:-172px;animation-delay:65ms}
+.deltos-fan-choice[data-deltos-rank="4"]{left:0;top:172px;animation-delay:85ms}
+.deltos-fan-choice.deltos-fan-add{left:88px;top:0;width:76px;height:76px;font-size:39px;line-height:1;color:#fff;background:linear-gradient(145deg,#6eaeff,#3876d8);border-color:#b9d8ff;animation-delay:0ms}
+.deltos-fan-caption{position:absolute;left:-84px;top:-16px;transform:translate(-100%,-50%);font-size:11px;color:var(--muted,#667);padding:6px 10px;border-radius:99px;background:var(--paper,#fff);border:1px solid var(--line,#dde2e6);max-width:190px;white-space:nowrap}
+.deltos-fan-close{position:absolute;left:89px;top:59px;width:28px;height:28px;border:1px solid var(--line,#ddd);border-radius:50%;background:var(--paper,#fff);color:var(--ink,#222);pointer-events:auto;cursor:pointer}
+.deltos-fan-creating{position:fixed;inset:0;pointer-events:auto;background:#10243b60;display:grid;place-items:center;z-index:10002;padding:22px}
+.deltos-fan-form{width:min(360px,100%);background:var(--paper,#fff);color:var(--ink,#222);border:1px solid var(--line,#ddd);border-radius:22px;padding:20px;box-shadow:0 28px 90px #0005;display:grid;gap:13px}
+.deltos-fan-form label{font-weight:750;font-size:14px}
+.deltos-fan-form input{width:100%;box-sizing:border-box;border-radius:12px;border:1px solid var(--line,#ddd);padding:13px 14px;font-size:15px;background:var(--paper,#fff);color:var(--ink,#222)}
+.deltos-fan-form-actions{display:flex;gap:10px;justify-content:flex-end}
+.deltos-fan-form-actions button{padding:10px 17px;border-radius:11px;border:1px solid var(--line,#ddd);background:var(--soft,#f3f5f8);color:var(--ink,#222);cursor:pointer}
+.deltos-fan-form-actions button[type=submit]{background:#4485e8;color:#fff}
+.deltos-fan-error{font-size:12px;color:#cb3f50;max-width:260px}
+@keyframes deltos-fan-pop{from{opacity:0;scale:.8}to{opacity:1;scale:1}}
+@media(max-height:650px){.deltos-fan-choice[data-deltos-rank="3"]{top:-125px}.deltos-fan-choice[data-deltos-rank="4"]{top:125px}.deltos-fan-choice[data-deltos-rank="1"]{top:-62px}.deltos-fan-choice[data-deltos-rank="2"]{top:62px}.deltos-fan-choice{width:70px;height:70px;font-size:11px}}
+@media(max-width:600px){.deltos-fan-choice{width:69px;height:69px;font-size:11px}.deltos-fan-choice.deltos-fan-add{width:67px;height:67px}.deltos-fan-choice[data-deltos-rank="3"]{left:-1px}.deltos-fan-choice[data-deltos-rank="4"]{left:-1px}.deltos-fan-choice[data-deltos-rank="1"],.deltos-fan-choice[data-deltos-rank="2"]{left:38px}.deltos-fan-choice.deltos-fan-add{left:76px}.deltos-fan-close{left:77px}.deltos-fan-caption{display:none}}
+@media(prefers-reduced-motion:reduce){.deltos-fan-choice{animation:none;transition:none}}
