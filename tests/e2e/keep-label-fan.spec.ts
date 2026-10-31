@@ -131,6 +131,8 @@ test('The wider fan forms a rounded arc with separated circular targets on deskt
    const distance=Math.hypot(first.cx-second.cx,first.cy-second.cy);
    expect(distance).toBeGreaterThan(first.r+second.r+4);
   }
+  // Finish the gesture in empty viewport space, rather than over a label bubble.
+  await page.mouse.move(10,10,{steps:8});
   await page.mouse.up();
   await expect(page.getByRole('group',{name:'Predictive Read and Keep labels'})).toHaveCount(0);
  }
