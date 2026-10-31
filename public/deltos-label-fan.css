@@ -1,18 +1,18 @@
 
 /* Predictive Read + Keep label fan. This sits above the existing swipe deck. */
 .deltos-fan-layer{position:fixed;inset:0;z-index:9998;pointer-events:none}
-.deltos-fan-stage{position:absolute;width:1px;height:1px;pointer-events:none;--deltos-fan-near-x:63px;--deltos-fan-far-x:-28px;--deltos-fan-add-x:132px;--deltos-fan-near-y:105px;--deltos-fan-far-y:188px}
+.deltos-fan-stage{position:absolute;width:1px;height:1px;pointer-events:none;--deltos-fan-near-x:-72px;--deltos-fan-far-x:-156px;--deltos-fan-add-x:0px;--deltos-fan-near-y:105px;--deltos-fan-far-y:188px}
 .deltos-fan-choice{position:absolute;width:86px;height:86px;transform:translate(-50%,-50%) scale(.96);border-radius:50%;padding:8px;border:1px solid rgba(255,255,255,.62);background:color-mix(in srgb,var(--paper,#fff) 86%,#c8dff5);box-shadow:0 12px 33px #142f4f36,inset 0 1px 1px #ffffffa3;color:var(--ink,#263240);font-size:12px;font-weight:740;line-height:1.15;letter-spacing:-.15px;text-align:center;overflow-wrap:anywhere;word-break:normal;display:grid;place-items:center;cursor:pointer;pointer-events:auto;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);transition:transform .13s ease,background .13s ease,box-shadow .13s ease;animation:deltos-fan-pop .16s ease-out both}
 .deltos-fan-choice:hover,.deltos-fan-choice:focus-visible,.deltos-fan-choice.deltos-fan-hot{transform:translate(-50%,-50%) scale(1.12);outline:2px solid #508eea;outline-offset:2px;background:color-mix(in srgb,var(--paper,#fff) 64%,#8bb8fb);box-shadow:0 16px 38px #142f4f50;z-index:5}
 .deltos-fan-choice:disabled{cursor:progress;opacity:.65}
 
 /* The four predicted labels sit on a rounded five-point fan, not a vertical stack.
-   Outer ranks are set back, middle ranks bow forward, and + is the apex. */
+   Outer ranks are set back, middle ranks bow forward, and the + is centered exactly on the stage anchor. */
 .deltos-fan-choice[data-deltos-rank="1"]{left:var(--deltos-fan-near-x);top:calc(0px - var(--deltos-fan-near-y));animation-delay:20ms}
 .deltos-fan-choice[data-deltos-rank="2"]{left:var(--deltos-fan-near-x);top:var(--deltos-fan-near-y);animation-delay:45ms}
 .deltos-fan-choice[data-deltos-rank="3"]{left:var(--deltos-fan-far-x);top:calc(0px - var(--deltos-fan-far-y));animation-delay:65ms}
 .deltos-fan-choice[data-deltos-rank="4"]{left:var(--deltos-fan-far-x);top:var(--deltos-fan-far-y);animation-delay:85ms}
-.deltos-fan-choice.deltos-fan-add{left:var(--deltos-fan-add-x);top:0;width:78px;height:78px;font-size:39px;line-height:1;color:#fff;background:linear-gradient(145deg,#6eaeff,#3876d8);border-color:#b9d8ff;animation-delay:0ms}
+.deltos-fan-choice.deltos-fan-add{left:0;top:0;width:78px;height:78px;padding:0;font-size:39px;line-height:1;color:#fff;background:linear-gradient(145deg,#6eaeff,#3876d8);border-color:#b9d8ff;animation-delay:0ms}
 .deltos-fan-caption{position:absolute;left:-84px;top:-16px;transform:translate(-100%,-50%);font-size:11px;color:var(--muted,#667);padding:6px 10px;border-radius:99px;background:var(--paper,#fff);border:1px solid var(--line,#dde2e6);max-width:190px;white-space:nowrap}
 .deltos-fan-close{position:absolute;left:calc(var(--deltos-fan-add-x) + 2px);top:62px;width:28px;height:28px;border:1px solid var(--line,#ddd);border-radius:50%;background:var(--paper,#fff);color:var(--ink,#222);pointer-events:auto;cursor:pointer}
 .deltos-fan-creating{position:fixed;inset:0;pointer-events:auto;background:#10243b60;display:grid;place-items:center;z-index:10002;padding:22px}
@@ -23,14 +23,15 @@
 .deltos-fan-form-actions button{padding:10px 17px;border-radius:11px;border:1px solid var(--line,#ddd);background:var(--soft,#f3f5f8);color:var(--ink,#222);cursor:pointer}
 .deltos-fan-form-actions button[type=submit]{background:#4485e8;color:#fff}
 .deltos-fan-error{font-size:12px;color:#cb3f50;max-width:260px}
-@keyframes deltos-fan-pop{from{opacity:0;scale:.8}to{opacity:1;scale:1}}
+/* Fade in without changing bubble hitboxes or their mathematically centered positions. */
+@keyframes deltos-fan-pop{from{opacity:0}to{opacity:1}}
 /* Compact vertical and horizontal radii keep every bubble reachable on shorter screens. */
 @media(max-height:650px){
- .deltos-fan-stage{--deltos-fan-near-x:57px;--deltos-fan-far-x:-24px;--deltos-fan-add-x:123px;--deltos-fan-near-y:74px;--deltos-fan-far-y:135px}
+ .deltos-fan-stage{--deltos-fan-near-x:-66px;--deltos-fan-far-x:-148px;--deltos-fan-add-x:0px;--deltos-fan-near-y:74px;--deltos-fan-far-y:135px}
  .deltos-fan-choice{width:72px;height:72px;font-size:11px}
 }
 @media(max-width:600px){
- .deltos-fan-stage{--deltos-fan-near-x:51px;--deltos-fan-far-x:-16px;--deltos-fan-add-x:105px;--deltos-fan-near-y:84px;--deltos-fan-far-y:154px}
+ .deltos-fan-stage{--deltos-fan-near-x:-54px;--deltos-fan-far-x:-121px;--deltos-fan-add-x:0px;--deltos-fan-near-y:84px;--deltos-fan-far-y:154px}
  .deltos-fan-choice{width:69px;height:69px;font-size:11px}
  .deltos-fan-choice.deltos-fan-add{width:67px;height:67px}
  .deltos-fan-close{top:55px}
