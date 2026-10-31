@@ -115,10 +115,25 @@ test('The wider fan forms a rounded arc with separated circular targets on deskt
    return {rank,cx:box.x+box.width/2,cy:box.y+box.height/2,r:box.width/2};
   }));
   const [three,one,plus,two,four]=boxes;
+  // Exact 25% size reduction relative to the previous fan at each breakpoint.
+  const mobile=size.width<=600,short=size.height<=650;
+  const circle=mobile?(short?48:51.75):(short?54:64.5);
+  const addCircle=mobile?(short?48:50.25):58.5;
+  await expect(page.locator('[data-deltos-rank="1"]')).toHaveCSS('width',circle+'px');
+  await expect(page.locator('[data-deltos-rank="1"]')).toHaveCSS('height',circle+'px');
+  await expect(page.locator('.deltos-fan-add')).toHaveCSS('width',addCircle+'px');
+  await expect(page.locator('.deltos-fan-add')).toHaveCSS('height',addCircle+'px');
+  // A true smooth circular arc has a consistent effective radius at both stations.
+  const arcRadius=(point:{cx:number,cy:number})=>{
+   const dx=plus.cx-point.cx,dy=plus.cy-point.cy;
+   return (dx*dx+dy*dy)/(2*dx);
+  };
+  expect(Math.abs(arcRadius(one)-arcRadius(three))).toBeLessThan(13);
+  expect(Math.abs(arcRadius(two)-arcRadius(four))).toBeLessThan(13);
   expect(three.cx).toBeLessThan(one.cx-45);
-  expect(one.cx).toBeLessThan(plus.cx-39);
+  expect(one.cx).toBeLessThan(plus.cx-15);
   expect(four.cx).toBeLessThan(two.cx-45);
-  expect(two.cx).toBeLessThan(plus.cx-39);
+  expect(two.cx).toBeLessThan(plus.cx-15);
   expect(three.cy).toBeLessThan(one.cy-40);
   expect(one.cy).toBeLessThan(plus.cy-40);
   expect(plus.cy).toBeLessThan(two.cy-40);
@@ -216,4 +231,42 @@ test('Triage fan is visible only while a card is actively swiped right',async({p
  await page.mouse.up();
  await expect(page.locator('.deltos-fan-choice')).toHaveCount(0);
  await expect(card).toBeVisible();
+});
+
+test('Inbox right-swipe fan disappears immediately at center and when turned vertically',async({page})=>{
+ await page.goto('/');
+ const row=page.locator('.compact-folder-inbox .compact-message').first();
+ const {sx,sy}=await beginRightSwipe(page,row);
+ const fan=page.getByRole('group',{name:'Predictive Read and Keep labels'});
+ await expect(fan).toBeVisible();
+ await page.mouse.move(sx+8,sy,{steps:7});
+ await expect(fan).toHaveCount(0);
+ await page.mouse.move(sx+95,sy,{steps:8});
+ await expect(fan).toBeVisible();
+ await page.mouse.move(sx+32,sy+185,{steps:10});
+ await expect(fan).toHaveCount(0);
+ await page.mouse.move(sx+95,sy,{steps:8});
+ await expect(fan).toBeVisible();
+ await page.mouse.up();
+ await expect(fan).toHaveCount(0);
+});
+
+test('Triage right-swipe fan disappears at center and when direction changes',async({page})=>{
+ await page.goto('/');
+ await page.getByRole('button',{name:'Triage',exact:true}).click();
+ const card=page.locator('.deck-card.deck-top');
+ const {sx,sy}=await beginRightSwipe(page,card);
+ const fan=page.getByRole('group',{name:'Predictive Read and Keep labels'});
+ await expect(fan).toBeVisible();
+ await page.mouse.move(sx+7,sy,{steps:8});
+ await expect(fan).toHaveCount(0);
+ await page.mouse.move(sx+95,sy,{steps:8});
+ await expect(fan).toBeVisible();
+ await page.mouse.move(sx+30,sy+170,{steps:10});
+ await expect(fan).toHaveCount(0);
+ await page.mouse.move(sx+95,sy,{steps:10});
+ await expect(fan).toBeVisible();
+ await page.mouse.move(12,12,{steps:10});
+ await page.mouse.up();
+ await expect(fan).toHaveCount(0);
 });

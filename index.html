@@ -566,6 +566,17 @@ function DeltosLoadMore({onLoad,loading=false}){
    disabled:loading,onClick:()=>onLoad('all'),children:loading?'Loading…':'Load All'})
  ]});
 }
+/* Keep the fan while approaching a bubble, even at the top/bottom of the arc.
+   Centering the card or steering clearly into an unrelated direction closes it. */
+function deltosRightFanShouldDismiss(dx,dy,clientX,clientY){
+ if(dx<=18)return true;
+ if(Math.abs(dy)<95||Math.abs(dy)<=Math.abs(dx)*1.25)return false;
+ const nearChoice=[...document.querySelectorAll('.deltos-fan-choice[data-deltos-choice]')].some(node=>{
+  const rect=node.getBoundingClientRect(),x=rect.left+rect.width/2,y=rect.top+rect.height/2;
+  return Math.hypot(clientX-x,clientY-y)<Math.max(rect.width,rect.height)/2+48;
+ });
+ return !nearChoice;
+}
 function DeltosCompactSwipeRow({message:e,folder:v,onOpen:t,onStar,onSwipe,onTodo:j,onRemind:k,onForward:l,onReply:u,onRestore:restoreMessage,onErase:eraseMessage}){
  const [drag,setDrag]=f.useState(null),pointer=f.useRef(null),recentSwipe=f.useRef(0);
  const begin=ev=>{
@@ -580,7 +591,7 @@ function DeltosCompactSwipeRow({message:e,folder:v,onOpen:t,onStar,onSwipe,onTod
   if(!p.fanShown&&dx>55&&Math.abs(dx)>Math.abs(dy)*1.3){
    p.fanShown=true;
    onSwipe?.('right',{preview:true});
-  }else if(p.fanShown&&dx< -150&&Math.abs(dx)>Math.abs(dy)*1.3){
+  }else if(p.fanShown&&deltosRightFanShouldDismiss(dx,dy,ev.clientX,ev.clientY)){
    p.fanShown=false;
    onSwipe?.('right',{cancel:true});
   }
@@ -734,12 +745,14 @@ function DeltosKeepFan({request,backend,history,onPick,onClose}){
    const mobile=innerWidth<=600,compact=innerHeight<=650;
    // The stage origin is the exact center of the + bubble, with two
    // vertically mirrored suggestions above and two below.
-   const leftMargin=mobile?162:compact?189:204;
-   const rightMargin=mobile?43:compact?45:46;
-   const verticalMargin=mobile?(compact?157:194):(compact?175:236);
+   // The + button is the rightmost apex. Smaller circles allow a farther-right
+   // origin and a single smooth arc without clipping on phones or short displays.
+   const leftMargin=mobile?(compact?103:115):(compact?130:144);
+   const rightMargin=mobile?(compact?32:34):38;
+   const verticalMargin=mobile?(compact?130:170):(compact?167:216);
    const fit=(value,minimum,maximum)=>Math.max(minimum,Math.min(maximum,value));
    setPosition({
-    left:fit(rect?rect.right+22:innerWidth*.70,leftMargin,Math.max(leftMargin,innerWidth-rightMargin)),
+    left:fit(rect?rect.right+(mobile?70:94):innerWidth*.83,leftMargin,Math.max(leftMargin,innerWidth-rightMargin)),
     top:fit(rect?(rect.top+rect.bottom)/2:innerHeight*.5,verticalMargin,Math.max(verticalMargin,innerHeight-verticalMargin))
    });
   };
@@ -810,7 +823,7 @@ function DeltosKeepFan({request,backend,history,onPick,onClose}){
 }
 function Bt({items:e,undoVisual:undoCard,onUndoVisualEnd:finishUndo,onSwipe:t,onOpen:n,onUndo:r,onRedo:i,onStar:starMessage,canUndo:a,canRedo:o,onTodo:s,onConfirmRemind:c,onForward:l,onSaveForward:q,onLoadForward:L,onReply:u,replyingTo:d,onSendReply:p,onSaveDraft:m,onScheduleReply:h,onDiscardReply:g}){let[_,v]=(0,f.useState)(()=>e.map(e=>e.id)),[y,b]=(0,f.useState)(null),[x,ee]=(0,f.useState)(null),[te,ne]=(0,f.useState)(null),[fwd,setFwd]=(0,f.useState)(null),[fwdDetail,setFwdDetail]=(0,f.useState)(null),S=(0,f.useRef)(null),C=(0,f.useRef)(!1),keyboardTarget=(0,f.useRef)(null);(0,f.useLayoutEffect)(()=>{keyboardTarget.current?.focus({preventScroll:true})},[]);(0,f.useEffect)(()=>{v(t=>{let n=new Set(e.map(e=>e.id)),r=t.filter(e=>n.has(e)),i=e.map(e=>e.id).filter(e=>!t.includes(e));return[...r,...i]})},[e]);(0,f.useEffect)(()=>{if(undoCard?.id)v(prev=>[undoCard.id,...prev.filter(id=>id!==undoCard.id)])},[undoCard?.token]);let w=new Map(e.map(e=>[e.id,e])),re=_.map(e=>w.get(e)).filter(e=>!!e);if(undoCard?.message&&w.has(undoCard.id))re=[w.get(undoCard.id),...re.filter(m=>m.id!==undoCard.id)];let ie=re[0]??null,ae=new Map;for(let t of e)ae.set(t.from,(ae.get(t.from)??0)+1);let oe=e=>({message:fwdDetail?.id===e.id?fwdDetail:e,senderCount:ae.get(e.from)??1,isReplying:d?.id===e.id,isReminding:te===e.id,onTodo:s,onStar:()=>starMessage?.(e,'triage'),onRemind:()=>{g(),ne(t=>t===e.id?null:e.id)},onForward:()=>{ne(null);setFwd(t=>t===e.id?null:e.id);setFwdDetail(null);Promise.resolve(L(e)).then(t=>{if(t)setFwdDetail(t)}).catch(()=>{})},isForwarding:fwd===e.id,onSendForward:async t=>{await l(e,t);setFwd(null)},onSaveForward:async t=>{await q(e,t);setFwd(null)},onCloseForward:()=>setFwd(null),onReply:()=>{setFwd(null);ne(null);u(e)},onSendReply:p,onSaveDraft:m,onScheduleReply:h,onDiscardReply:g,onConfirmRemind:t=>{c(e,t),ne(null)},onCloseRemind:()=>ne(null)}),se=(e,n)=>{if(!ie||C.current)return;if(e===`right`){b(null);return}C.current=!0,ne(null),b(n??{dx:0,dy:0}),ee(e);let r=ie;window.setTimeout(()=>{v(e===`up`?e=>e[0]===r.id?[...e.slice(1),e[0]]:e:e=>e.filter(e=>e!==r.id)),ee(null),b(null),C.current=!1,t(e,r)},260)},ce=e=>{if(!(C.current||x)&&!e.target.closest(`button`)&&(e.pointerType!==`mouse`||e.button===0)){S.current={startX:e.clientX,startY:e.clientY,pointerId:e.pointerId,fanShown:false};try{e.currentTarget.setPointerCapture(e.pointerId)}catch{}}},le=e=>{let p=S.current;if(p&&p.pointerId===e.pointerId&&!C.current){let dx=e.clientX-p.startX,dy=e.clientY-p.startY;b({dx,dy});if(!p.fanShown&&dx>55&&Math.abs(dx)>Math.abs(dy)*1.3&&ie){
  p.fanShown=true;t('right',ie,{preview:true})
-}else if(p.fanShown&&dx< -150&&Math.abs(dx)>Math.abs(dy)*1.3){
+}else if(p.fanShown&&deltosRightFanShouldDismiss(dx,dy,e.clientX,e.clientY)){
  p.fanShown=false;t('right',ie,{cancel:true})
 }}},ue=e=>{let gesture=S.current;if(!gesture||gesture.pointerId!==e.pointerId)return;S.current=null;let r=e.clientX-gesture.startX,i=e.clientY-gesture.startY;
 let chosen=gesture.fanShown?[...document.querySelectorAll('.deltos-fan-choice[data-deltos-choice]')].find(node=>{
