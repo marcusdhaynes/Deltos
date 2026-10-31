@@ -8,9 +8,9 @@
 
 /* The four predicted labels sit on a rounded five-point fan, not a vertical stack.
    Outer ranks are set back, middle ranks bow forward, and + is the apex. */
-.deltos-fan-choice[data-deltos-rank="1"]{left:var(--deltos-fan-near-x);top:calc(-1 * var(--deltos-fan-near-y));animation-delay:20ms}
+.deltos-fan-choice[data-deltos-rank="1"]{left:var(--deltos-fan-near-x);top:calc(0px - var(--deltos-fan-near-y));animation-delay:20ms}
 .deltos-fan-choice[data-deltos-rank="2"]{left:var(--deltos-fan-near-x);top:var(--deltos-fan-near-y);animation-delay:45ms}
-.deltos-fan-choice[data-deltos-rank="3"]{left:var(--deltos-fan-far-x);top:calc(-1 * var(--deltos-fan-far-y));animation-delay:65ms}
+.deltos-fan-choice[data-deltos-rank="3"]{left:var(--deltos-fan-far-x);top:calc(0px - var(--deltos-fan-far-y));animation-delay:65ms}
 .deltos-fan-choice[data-deltos-rank="4"]{left:var(--deltos-fan-far-x);top:var(--deltos-fan-far-y);animation-delay:85ms}
 .deltos-fan-choice.deltos-fan-add{left:var(--deltos-fan-add-x);top:0;width:78px;height:78px;font-size:39px;line-height:1;color:#fff;background:linear-gradient(145deg,#6eaeff,#3876d8);border-color:#b9d8ff;animation-delay:0ms}
 .deltos-fan-caption{position:absolute;left:-84px;top:-16px;transform:translate(-100%,-50%);font-size:11px;color:var(--muted,#667);padding:6px 10px;border-radius:99px;background:var(--paper,#fff);border:1px solid var(--line,#dde2e6);max-width:190px;white-space:nowrap}
