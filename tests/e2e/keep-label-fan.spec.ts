@@ -71,3 +71,41 @@ test('The four prediction bubbles appear in the requested 3 / 1 / + / 2 / 4 arc'
  expect(c.x).toBeLessThan(a.x);expect(a.x).toBeLessThan(plus.x);
  expect(d.x).toBeLessThan(b.x);expect(b.x).toBeLessThan(plus.x);
 });
+
+
+test('The wider fan forms a rounded arc with separated circular targets on desktop, mobile and short screens',async({page})=>{
+ for(const size of [{width:1280,height:800},{width:390,height:844},{width:900,height:580},{width:375,height:600}]){
+  await page.setViewportSize(size);
+  await page.goto('/');
+  const row=page.locator('.compact-folder-inbox .compact-message').first();
+  await expect(row).toBeVisible();
+  await row.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('.deltos-fan-choice')).toHaveCount(5);
+  const boxes=await Promise.all(['3','1','new','2','4'].map(async rank=>{
+   const selector=rank==='new'?'.deltos-fan-add':'[data-deltos-rank="'+rank+'"]';
+   const box=await page.locator(selector).boundingBox();
+   if(!box)throw Error('Missing fan bubble at '+size.width+'x'+size.height+': '+rank);
+   expect(box.x).toBeGreaterThanOrEqual(3);
+   expect(box.y).toBeGreaterThanOrEqual(3);
+   expect(box.x+box.width).toBeLessThanOrEqual(size.width-3);
+   expect(box.y+box.height).toBeLessThanOrEqual(size.height-3);
+   return {rank,cx:box.x+box.width/2,cy:box.y+box.height/2,r:box.width/2};
+  }));
+  const [three,one,plus,two,four]=boxes;
+  expect(three.cx).toBeLessThan(one.cx-45);
+  expect(one.cx).toBeLessThan(plus.cx-39);
+  expect(four.cx).toBeLessThan(two.cx-45);
+  expect(two.cx).toBeLessThan(plus.cx-39);
+  expect(three.cy).toBeLessThan(one.cy-40);
+  expect(one.cy).toBeLessThan(plus.cy-40);
+  expect(plus.cy).toBeLessThan(two.cy-40);
+  expect(two.cy).toBeLessThan(four.cy-40);
+  for(let a=0;a<boxes.length;a++)for(let b=a+1;b<boxes.length;b++){
+   const first=boxes[a],second=boxes[b];
+   const distance=Math.hypot(first.cx-second.cx,first.cy-second.cy);
+   expect(distance).toBeGreaterThan(first.r+second.r+4);
+  }
+  await page.getByRole('button',{name:'Cancel label selection'}).click();
+ }
+});
