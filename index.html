@@ -716,10 +716,16 @@ function DeltosKeepFan({request,backend,history,onPick,onClose}){
    if(request.source==='triage')el=document.querySelector('.deck-card.deck-top');
    else el=[...document.querySelectorAll('.compact-message[data-id]')].find(n=>n.dataset.id===message.id);
    const rect=el?.getBoundingClientRect();
-   const mobile=innerWidth<600;
+   const mobile=innerWidth<=600,compact=innerHeight<=650;
+   // Keep the entire wider arc (including its outer bubbles) inside the viewport.
+   // These limits correspond to the responsive fan radii in deltos-label-fan.css.
+   const leftMargin=mobile?63:compact?75:85;
+   const rightMargin=mobile?151:compact?172:184;
+   const verticalMargin=mobile?(compact?161:199):(compact?183:241);
+   const fit=(value,minimum,maximum)=>Math.max(minimum,Math.min(maximum,value));
    setPosition({
-    left:Math.max(mobile?52:60,Math.min(innerWidth-(mobile?126:145),rect?rect.right-12:innerWidth*.65)),
-    top:Math.max(innerHeight<650?145:195,Math.min(innerHeight-(innerHeight<650?145:195),rect?(rect.top+rect.bottom)/2:innerHeight*.5))
+    left:fit(rect?rect.right-12:innerWidth*.65,leftMargin,Math.max(leftMargin,innerWidth-rightMargin)),
+    top:fit(rect?(rect.top+rect.bottom)/2:innerHeight*.5,verticalMargin,Math.max(verticalMargin,innerHeight-verticalMargin))
    });
   };
   update();window.addEventListener('resize',update);window.addEventListener('scroll',update,true);
