@@ -270,3 +270,79 @@ test('Triage right-swipe fan disappears at center and when direction changes',as
  await page.mouse.up();
  await expect(fan).toHaveCount(0);
 });
+
+test('Each of all five archive filter bubbles can be highlighted and chosen by dragging and releasing in Inbox',async({page})=>{
+ for(const rank of ['1','2','3','4','new']){
+  await page.goto('/');
+  const row=page.locator('.compact-folder-inbox .compact-message').first();
+  await beginRightSwipe(page,row);
+  const target=rank==='new'?page.locator('.deltos-fan-add'):page.locator('[data-deltos-rank="'+rank+'"]');
+  await expect(target).toBeVisible();
+  const label=await target.innerText();
+  const box=await target.boundingBox();
+  if(!box)throw Error('Missing bubble for '+rank);
+  await page.mouse.move(box.x+box.width/2,box.y+box.height/2,{steps:16});
+  await expect(target).toHaveAttribute('data-deltos-over','true');
+  await page.mouse.up();
+  if(rank==='new'){
+   await expect(page.getByRole('textbox',{name:'New Gmail label'})).toBeVisible();
+   await page.getByRole('textbox',{name:'New Gmail label'}).fill('Custom Sender Archive');
+   await page.getByRole('button',{name:'Create & Archive'}).click();
+  }
+  await expect(page.locator('#toast-root')).toContainText('Archive Filter');
+  await expect(page.locator('#toast-root')).toContainText('archived and labeled');
+  await expect(page.locator('.compact-folder-inbox .compact-message').filter({hasText:'Lena Carter'})).toHaveCount(0);
+  await expect(page.locator('.deltos-fan-choice')).toHaveCount(0);
+ }
+});
+
+test('All five archive filter bubbles accept a drag-to-release from a Triage card',async({page})=>{
+ for(const rank of ['1','2','3','4','new']){
+  await page.goto('/');
+  await page.getByRole('button',{name:'Triage',exact:true}).click();
+  const card=page.locator('.deck-card.deck-top');
+  const oldSubject=await card.locator('.deck-subject').innerText();
+  await beginRightSwipe(page,card);
+  const target=rank==='new'?page.locator('.deltos-fan-add'):page.locator('[data-deltos-rank="'+rank+'"]');
+  await expect(target).toBeVisible();
+  const box=await target.boundingBox();
+  if(!box)throw Error('Missing Triage bubble '+rank);
+  await page.mouse.move(box.x+box.width/2,box.y+box.height/2,{steps:16});
+  await expect(target).toHaveAttribute('data-deltos-over','true');
+  await page.mouse.up();
+  if(rank==='new'){
+   await expect(page.getByRole('textbox',{name:'New Gmail label'})).toBeVisible();
+   await page.getByRole('textbox',{name:'New Gmail label'}).fill('Custom Triage Archive');
+   await page.getByRole('button',{name:'Create & Archive'}).click();
+  }
+  await expect(page.locator('.triage-filter-impact [data-filter-kind="archive"]')).toContainText('2');
+  await expect(page.locator('.deck-card.deck-top .deck-subject')).not.toHaveText(oldSubject);
+  await expect(page.locator('.deltos-fan-choice')).toHaveCount(0);
+ }
+});
+
+test('Filter impact counts appear directly after the Triage info button and persist after refresh',async({page})=>{
+ await page.goto('/');
+ await page.getByRole('button',{name:'Triage',exact:true}).click();
+ const card=page.locator('.deck-card.deck-top');
+ await beginRightSwipe(page,card);
+ await releaseOn(page,page.locator('[data-deltos-rank="1"]'));
+ const header=page.locator('.triage-header');
+ const info=header.locator('.info-btn');
+ const archive=header.locator('[data-filter-kind="archive"]');
+ await expect(archive).toContainText('Archive filtered: 2');
+ const infoBox=await info.boundingBox(),archiveBox=await archive.boundingBox();
+ expect(infoBox&&archiveBox&&archiveBox.x>infoBox.x+infoBox.width).toBe(true);
+ await page.reload();
+ await page.getByRole('button',{name:'Triage',exact:true}).click();
+ await expect(page.locator('.triage-filter-impact [data-filter-kind="archive"]')).toContainText('Archive filtered: 2');
+ // Left: Delete Filter must count every message affected from sender.
+ const card2=page.locator('.deck-card.deck-top');
+ const box=await card2.boundingBox();
+ if(!box)throw Error('No triage card');
+ const sx=box.x+box.width/2,sy=box.y+box.height/2;
+ await page.mouse.move(sx,sy);await page.mouse.down();
+ await page.mouse.move(sx-155,sy,{steps:10});await page.mouse.up();
+ await expect(page.locator('.triage-filter-impact [data-filter-kind="delete"]')).toContainText('Delete filtered: 2');
+ await expect(archive).toContainText('Archive filtered: 2');
+});
