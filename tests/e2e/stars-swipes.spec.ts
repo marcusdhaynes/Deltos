@@ -82,7 +82,7 @@ test('Inbox swipe stamps show all four directions while dragging',async({page})=
    await expect(page.getByRole('textbox',{name:'New Gmail label'})).toBeVisible();
    await page.getByRole('textbox',{name:'New Gmail label'}).fill('Swipe Test Label');
    await page.getByRole('button',{name:'Create & Archive'}).click();
-   await expect(page.locator('#toast-root')).toContainText('Archive Filter');
+   await expect(page.locator('#toast-root')).toContainText('Archived + labeled');
   }else{
    await page.mouse.up();
   }
