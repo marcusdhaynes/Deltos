@@ -732,11 +732,15 @@ function deltosPortraitDragStyle(drag,fanActive,kind){
  };
 }
 function deltosRightFanShouldDismiss(dx,dy,clientX,clientY){
+ // A return toward the origin or a steep vertical swipe close to the origin
+ // is a cancellation. Farther right, keep the fan while crossing the empty
+ // space toward the outermost circle: portrait targets need diagonal travel.
  if(dx<=18)return true;
- if(Math.abs(dy)<95||Math.abs(dy)<=Math.abs(dx)*1.25)return false;
+ if(dx<36&&Math.abs(dy)>108)return true;
+ if(Math.abs(dy)<225||Math.abs(dy)<=Math.abs(dx)*1.8)return false;
  const nearChoice=[...document.querySelectorAll('.deltos-fan-choice[data-deltos-choice]')].some(node=>{
   const rect=node.getBoundingClientRect(),x=rect.left+rect.width/2,y=rect.top+rect.height/2;
-  return Math.hypot(clientX-x,clientY-y)<Math.max(rect.width,rect.height)/2+48;
+  return Math.hypot(clientX-x,clientY-y)<Math.max(rect.width,rect.height)/2+90;
  });
  return !nearChoice;
 }
