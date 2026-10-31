@@ -732,16 +732,17 @@ function deltosPortraitDragStyle(drag,fanActive,kind){
  };
 }
 function deltosRightFanShouldDismiss(dx,dy,clientX,clientY){
- // A return toward the origin or a steep vertical swipe close to the origin
- // is a cancellation. Farther right, keep the fan while crossing the empty
- // space toward the outermost circle: portrait targets need diagonal travel.
- if(dx<=18)return true;
- if(dx<36&&Math.abs(dy)>108)return true;
- if(Math.abs(dy)<225||Math.abs(dy)<=Math.abs(dx)*1.8)return false;
+ // Only dismiss near the *start point* when the finger is not already
+ // approaching one of the five actual circles. On narrow phones an outer
+ // bubble can share almost the same x as the touch origin, but a very
+ // different y. dx alone cannot distinguish a drop from a cancelled swipe.
  const nearChoice=[...document.querySelectorAll('.deltos-fan-choice[data-deltos-choice]')].some(node=>{
-  const rect=node.getBoundingClientRect(),x=rect.left+rect.width/2,y=rect.top+rect.height/2;
-  return Math.hypot(clientX-x,clientY-y)<Math.max(rect.width,rect.height)/2+90;
+  const r=node.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;
+  return Math.hypot(clientX-x,clientY-y)<=Math.max(r.width,r.height)/2+32;
  });
+ if(dx<=18)return !(Math.abs(dy)>58&&nearChoice);
+ if(dx<36&&Math.abs(dy)>108&&!nearChoice)return true;
+ if(Math.abs(dy)<225||Math.abs(dy)<=Math.abs(dx)*1.8)return false;
  return !nearChoice;
 }
 function DeltosCompactSwipeRow({message:e,folder:v,onOpen:t,onStar,onSwipe,onTodo:j,onRemind:k,onForward:l,onReply:u,onRestore:restoreMessage,onErase:eraseMessage}){
