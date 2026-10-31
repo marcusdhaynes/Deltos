@@ -89,13 +89,24 @@ test('Moving to a label progressively highlights it, shrinks the card and drops 
  await page.setViewportSize(size);
  await page.goto('/');
  const card=page.locator('.compact-folder-inbox .compact-message').first();
- const {initial}=await beginDrag(page,card,92);
+ const {initial,sx,sy}=await beginDrag(page,card,92);
  await visibleFanFits(page,size);
  const target=page.locator('[data-deltos-rank="4"]');
  const targetBox=await target.boundingBox();
  if(!targetBox)throw Error('Outer label missing');
  const x=targetBox.x+targetBox.width/2,y=targetBox.y+targetBox.height/2;
- await page.mouse.move(x,y,{steps:18});
+ const trace=[];
+ for(let step=1;step<=18;step++){
+  const px=sx+92+(x-(sx+92))*step/18,py=sy+(y-sy)*step/18;
+  await page.mouse.move(px,py);
+  const state=await page.evaluate(({px,py})=>{
+   const nodes=[...document.querySelectorAll('.deltos-fan-choice')];
+   const r=nodes.map(n=>{const b=n.getBoundingClientRect();return{rank:n.getAttribute('data-deltos-rank')||'new',x:Math.round(b.x+b.width/2),y:Math.round(b.y+b.height/2)}});
+   return{pointer:[Math.round(px),Math.round(py)],fan:nodes.length,choices:r};
+  },{px,py});
+  trace.push(state);
+  if(state.fan!==5)throw Error('Fan closed during diagonal drag: '+JSON.stringify({sx,sy,target:[x,y],trace}));
+ }
  await expect(target).toHaveAttribute('data-deltos-over','true');
  await expect(target).toHaveClass(/deltos-fan-hot/);
  await expect.poll(async()=>{
