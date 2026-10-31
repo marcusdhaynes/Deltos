@@ -75,7 +75,11 @@ test('Inbox swipe stamps show all four directions while dragging',async({page})=
   await page.mouse.up();
   if(direction==='left')await expect(page.getByRole('dialog')).toBeVisible();
   if(direction==='right'){
-   await expect(page.locator('#toast-root')).toContainText('Opened');
+   await expect(page.getByRole('button',{name:'Create a new label'})).toBeVisible();
+   await page.getByRole('button',{name:'Create a new label'}).click();
+   await page.getByRole('textbox',{name:'New Gmail label'}).fill('Swipe Test Label');
+   await page.getByRole('button',{name:'Create & Keep'}).click();
+   await expect(page.locator('#toast-root')).toContainText('Read + Keep');
   }
   if(direction==='up')await expect(page.locator('#toast-root')).toContainText('Marked unread');
   if(direction==='down')await expect(page.locator('#toast-root')).toContainText('Moved to Trash');
