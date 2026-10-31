@@ -30,8 +30,8 @@ function methodAfter(needle:string,before:string){
   validSender,addressFrom,simpleSenderFilter,()=> 'random-id'
  ) as (from:string,labelId:string)=>Promise<{sender:string,count:number,filterCreated:boolean}>;
 }
-const demoMethod=methodAfter(' async ensureSenderLabel(from,labelId){','var g=class{demo=!0');
-const gmailMethod=methodAfter(' async ensureSenderLabel(from,labelId){','var ut=class{demo=!1');
+const demoMethod=methodAfter(' async ensureSenderLabel(from,labelId,onProgress){','var g=class{demo=!0');
+const gmailMethod=methodAfter(' async ensureSenderLabel(from,labelId,onProgress){','var ut=class{demo=!1');
 
 test('Demo archives and labels every sender message across Inbox, Archive, Spam and Trash, preserving read state',async()=>{
  const same='billing@sender.example';
@@ -48,7 +48,7 @@ test('Demo archives and labels every sender message across Inbox, Archive, Spam 
   listLabels:async()=>[{id:'demo-label-paperwork',name:'Paperwork'}]
  };
  const first=await demoMethod.call(demo,'Sender <BILLING@SENDER.EXAMPLE>','demo-label-paperwork');
- expect(first).toEqual({sender:same,count:4,filterCreated:true});
+ expect(first).toEqual({sender:same,count:4,filterCreated:true,futureActive:true});
  for(const id of ['inbox','archived','spam','trash']){
   const labels=messages.get(id)!.labels;
   expect(labels).toContain('demo-label-paperwork');
@@ -60,7 +60,7 @@ test('Demo archives and labels every sender message across Inbox, Archive, Spam 
  expect(messages.get('other')!.labels).toEqual(['INBOX']);
  expect([...rules.values()].filter((r:any)=>r.email===same&&(r.label==='demo-label-paperwork'))).toHaveLength(1);
  const repeat=await demoMethod.call(demo,same,'demo-label-paperwork');
- expect(repeat).toEqual({sender:same,count:4,filterCreated:false});
+ expect(repeat).toEqual({sender:same,count:4,filterCreated:false,futureActive:true});
  expect(rules.size).toBe(1);
 });
 
@@ -89,7 +89,7 @@ test('Gmail first installs an idempotent sender filter then labels every matchin
   }
  };
  const result=await gmailMethod.call(gmail,'Display Name <billing@sender.example>','Label_123');
- expect(result).toEqual({sender:'billing@sender.example',count:5,filterCreated:true});
+ expect(result).toEqual({sender:'billing@sender.example',count:5,filterCreated:true,futureActive:true,futureError:''});
  expect(calls[0]).toEqual({
   path:'/settings/filters',
   body:{criteria:{from:'billing@sender.example'},action:{addLabelIds:['Label_123'],removeLabelIds:['INBOX']}}
@@ -110,6 +110,7 @@ test('Gmail first installs an idempotent sender filter then labels every matchin
  const before=calls.length;
  const again=await gmailMethod.call(gmail,'billing@sender.example','Label_123');
  expect(again.filterCreated).toBe(false);
+ expect(again.futureActive).toBe(true);
  expect(calls.slice(before).some(c=>c.path==='/settings/filters')).toBe(false);
 });
 
@@ -132,9 +133,57 @@ test('Archive Filter moves both historic messages from one sender out of Inbox',
  await page.getByRole('textbox',{name:'New Gmail label'}).fill('Sender Paperwork');
  await page.getByRole('button',{name:'Create & Archive'}).click();
  await expect(page.getByRole('group',{name:'Predictive Read and Keep labels'})).toHaveCount(0);
- await expect(page.locator('#toast-root')).toContainText('2 messages from lena@atelier-studio.com archived and labeled');
+ await expect(page.locator('#toast-root')).toContainText('Archived + labeled 2 messages from lena@atelier-studio.com');
  // Both messages leave Inbox and Triage after archive-and-label.
  const matching=page.locator('.compact-folder-inbox .compact-message').filter({hasText:'Lena Carter'});
  await expect(matching).toHaveCount(0);
- await expect(page.locator('#toast-root')).toContainText('future mail filtered');
+ await expect(page.locator('#toast-root')).toContainText('future Gmail filter active');
+});
+
+test('Backfills every Gmail sender message even when future filter creation is denied',async()=>{
+ const calls:{path:string}[]=[];
+ const modifications:{ids:string[],add:string[],remove:string[]}[]=[];
+ const backend={
+  filters:async()=>[],
+  call:async(path:string,opts?:any)=>{
+   calls.push({path});
+   if(path==='/settings/filters')throw Error('403 insufficient authentication scopes');
+   if(path.startsWith('/messages?'))return {messages:[{id:'1'},{id:'2'}]};
+   throw Error('Unexpected '+path);
+  },
+  batchModify:async(ids:string[],add:string[],remove:string[])=>{modifications.push({ids,add,remove})}
+ };
+ const result=await gmailMethod.call(backend,'billing@sender.example','Label_123');
+ expect(result).toMatchObject({
+  count:2,filterCreated:false,futureActive:false,
+  futureError:'403 insufficient authentication scopes'
+ });
+ expect(modifications).toEqual([{ids:['1','2'],add:['Label_123'],remove:['INBOX']}]);
+ expect(calls.some(c=>c.path.startsWith('/messages?'))).toBe(true);
+});
+
+test('Inbox shows counts and a visible filter result; Filters shows actual destinations and matching messages',async({page})=>{
+ await page.goto('/');
+ const header=page.locator('.compact-folder-heading');
+ await expect(header.locator('[data-filter-kind="archive"]')).toContainText('Archive filtered: 0');
+ await expect(header.locator('[data-filter-kind="delete"]')).toContainText('Delete filtered: 0');
+ const row=page.locator('.compact-folder-inbox .compact-message').filter({hasText:'Lena Carter'}).first();
+ const box=await row.boundingBox();
+ if(!box)throw Error('Missing sender row');
+ const sx=box.x+box.width/2,sy=box.y+box.height/2;
+ await page.mouse.move(sx,sy);await page.mouse.down();
+ await page.mouse.move(sx+90,sy,{steps:10});
+ const plus=page.getByRole('button',{name:'Create a new label'});
+ const b=await plus.boundingBox();
+ if(!b)throw Error('Missing plus bubble');
+ await page.mouse.move(b.x+b.width/2,b.y+b.height/2,{steps:12});await page.mouse.up();
+ await page.getByRole('textbox',{name:'New Gmail label'}).fill('Visible Label');
+ await page.getByRole('button',{name:'Create & Archive'}).click();
+ await expect(header.locator('[data-filter-kind="archive"]')).toContainText('Archive filtered: 2');
+ await expect(header.locator('[data-filter-progress="done"]')).toContainText('Archived + labeled 2');
+ await page.getByRole('button',{name:'Filters',exact:true}).click();
+ await expect(page.getByText('Archive → Visible Label')).toBeVisible();
+ await page.getByRole('button',{name:'View messages in Visible Label'}).click();
+ await expect(page.locator('.deltos-filter-preview')).toContainText('Messages in Visible Label: 2');
+ await expect(page.locator('.deltos-filter-preview')).toContainText('Lena Carter');
 });
