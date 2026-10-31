@@ -39,7 +39,7 @@ Sent from the Inbox Reborn demo.`,timestamp:e-o*3600*1e3,bundle:a,unread:s,pinne
  }async removeLabel(id,labelId){const m=this.get(id);m.labels=m.labels.filter(l=>l!==labelId)}
  // Archive and label every message from the exact sender across all folders.
  // The matching rule also archives and labels subsequent mail in demo mode.
- async ensureSenderLabel(from,labelId){
+ async ensureSenderLabel(from,labelId,onProgress){
   const sender=v(y(String(from||'')));
   if(!(await this.listLabels()).some(label=>label.id===labelId))throw Error('Label not found.');
   let existing=[...this.ruleMap.values()].find(rule=>rule.email===sender&&!rule.blocked&&rule.label===labelId);
@@ -54,8 +54,9 @@ Sent from the Inbox Reborn demo.`,timestamp:e-o*3600*1e3,bundle:a,unread:s,pinne
    // Archive the sender across mailbox views without changing unread/Trash/Spam flags.
    message.labels=message.labels.filter(id=>id!=='INBOX');
    count++;
+   onProgress?.({sender,count,stage:'archiving'});
   }
-  return{sender,count,filterCreated:!existing};
+  return{sender,count,filterCreated:!existing,futureActive:true};
  }
  async rules(){return[...this.ruleMap.values()].map(rule=>({...rule,criteria:{from:rule.email},action:{addLabelIds:rule.blocked?[`TRASH`]:[rule.label],removeLabelIds:rule.blocked?[`INBOX`]:[]},labelNames:{Finance:`Finance`,Trips:`Trips`}}))}async removeRule(e){if(!this.ruleMap.has(e))throw Error(`Filter not found`);this.ruleMap.delete(e)}async compose(e,t,n,c=``,b=``){let r=e.split(/[,\n;]+/).map(e=>e.trim()).filter(Boolean);if(!r.length||r.length>15)throw Error(`Enter one or more valid recipient addresses`);return this.sent.push({to:e,cc:c,bcc:b,subject:t,body:n}),{demo:!0}}async reply(e,t){let n=this.get(e);this.sent.push({to:n.from,subject:`Re: ${n.subject}`,body:t})}async saveDraft(e,t,n,c=``,b=``){this.sent.push({to:e,cc:c,bcc:b,subject:`Draft: ${t}`,body:n})}},_=/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;function v(e){let t=e.trim().toLowerCase();if(t.length>254||!_.test(t))throw Error(`Invalid sender email address`);return t}function y(e){let t=e.match(/<([^<>]*)>\s*$/);return(t?t[1]:e).trim().toLowerCase()}function b(e,t){let n=e.match(/^\s*"([^"]*)"/)||e.match(/^\s*([^<>"(]+?)\s*(<|$)/);return(n?n[1]:``).trim().replace(/^"|"$/g,``)||t.split(`@`)[0]||t}function x(e){return String(e).replace(/[^\p{L}\p{N} ]/gu,` `).trim().split(/\s+/).slice(0,2).map(e=>e[0]?.toUpperCase()||``).join(``)||`?`}function ee(e){let t=0;for(let n of e)t=(t*31+n.charCodeAt(0))%360;return`hsl(${t} 44% 57%)`}function te(e){let t=new Date(e),n=new Date;return t.toDateString()===n.toDateString()?t.toLocaleTimeString([],{hour:`numeric`,minute:`2-digit`}):t.toLocaleDateString([],{month:`short`,day:`numeric`})}function ne(e){let t=new Date(e),n=new Date,r=new Date(n);return r.setDate(n.getDate()-1),t.toDateString()===n.toDateString()?`Today`:t.toDateString()===r.toDateString()?`Yesterday`:t.getMonth()===n.getMonth()&&t.getFullYear()===n.getFullYear()?`This month`:t.toLocaleDateString([],{month:`long`,year:`numeric`})}function S(e,t,n){let r=(t+` `+n).toLowerCase();return[`receipt`,`order confirmed`,`your order`,`shipped`,`delivery`].some(e=>r.includes(e))?`Purchases`:[`flight`,`boarding pass`,`itinerary`,`hotel booking`].some(e=>r.includes(e))?`Trips`:[`statement`,`payment due`,`bank account`,`invoice`].some(e=>r.includes(e))?`Finance`:e.includes(`CATEGORY_PROMOTIONS`)?`Promos`:e.includes(`CATEGORY_SOCIAL`)?`Social`:e.includes(`CATEGORY_UPDATES`)||e.includes(`CATEGORY_FORUMS`)?`Updates`:`Personal`}function C(e,t){let n=e.criteria??{},r=n.from;if(!r||typeof r!=`string`||Object.keys(n).some(e=>e!==`from`&&e!==`excludeChats`))return!1;let i=r.trim().replace(/^"|"$/g,``);return y(i)===t||i.toLowerCase()===t}function w(e,t){let n=new Set,r=new Set,i=0,a=0;for(let o of e){if(!C(o,t))continue;let e=o.action??{},s=e.addLabelIds??[];if(s.includes(`TRASH`)||s.includes(`SPAM`))a+=1;else{i+=1;for(let e of s)e!==`TRASH`&&e!==`SPAM`&&n.add(e);for(let t of e.removeLabelIds??[])[`INBOX`,`TRASH`,`SPAM`].includes(t)||r.add(t)}}n.add(`INBOX`);for(let e of n)r.delete(e);return{addLabelIds:[...n].sort(),removeLabelIds:[...r].sort(),matched:i,skipped:a}}function re(e){try{let t=atob(e.replace(/-/g,`+`).replace(/_/g,`/`)),n=Uint8Array.from(t,e=>e.charCodeAt(0));return new TextDecoder(`utf-8`,{fatal:!1}).decode(n)}catch{return``}}
 /* Preserve the formatted HTML part of a Gmail MIME message, independently
@@ -288,15 +289,25 @@ async function $e(){
  // The future archive-and-label rule is installed before backfilling the entire
  // mailbox. Gmail filters do not retroactively change old mail, so batch every page.
  // Do not change unread status or Spam/Trash markers on other messages.
- async ensureSenderLabel(from,labelId){
+ async ensureSenderLabel(from,labelId,onProgress){
   const sender=v(y(String(from||'')));
   if(!labelId)throw Error('A Gmail label is required.');
-  const existing=await this.filters();
-  const hasRule=existing.some(rule=>C(rule,sender)&&(rule.action?.addLabelIds||[]).includes(labelId)&&(rule.action?.removeLabelIds||[]).includes('INBOX'));
-  if(!hasRule)await this.call('/settings/filters',{
-   method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({criteria:{from:sender},action:{addLabelIds:[labelId],removeLabelIds:['INBOX']}})
-  });
+  let hasRule=false,filterCreated=false,futureActive=false,futureError='';
+  try{
+   const existing=await this.filters();
+   hasRule=existing.some(rule=>C(rule,sender)&&(rule.action?.addLabelIds||[]).includes(labelId)&&(rule.action?.removeLabelIds||[]).includes('INBOX'));
+   if(!hasRule){
+    await this.call('/settings/filters',{
+     method:'POST',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({criteria:{from:sender},action:{addLabelIds:[labelId],removeLabelIds:['INBOX']}})
+    });
+    filterCreated=true;
+   }
+   futureActive=true;
+  }catch(error){
+   futureError=String(error?.message||'Gmail rejected the new filter.');
+   console.warn('Future archive filter could not be installed:',futureError);
+  }
   let count=0,pageToken=null;
   const visitedTokens=new Set(),seenIds=new Set();
   do{
@@ -309,13 +320,14 @@ async function $e(){
    });
    if(ids.length)await this.batchModify(ids,[labelId],['INBOX']);
    count+=ids.length;
+   onProgress?.({sender,count,stage:'archiving'});
    pageToken=page.nextPageToken||null;
    if(pageToken){
     if(visitedTokens.has(pageToken))throw Error('Gmail returned a repeated page; sender labeling stopped after '+count+' messages.');
     visitedTokens.add(pageToken);
    }
   }while(pageToken);
-  return{sender,count,filterCreated:!hasRule};
+  return{sender,count,filterCreated,futureActive,futureError};
  }
 
  async batchModify(e,t=[],n=[]){for(let r=0;r<e.length;r+=500)await this.call(`/messages/batchModify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({ids:e.slice(r,r+500),addLabelIds:t,removeLabelIds:n})})}async profileEmail(){return(await this.call(`/profile`)).emailAddress??``}async list(e,t,n,onProgress,pageSize=50){let spec=deltosSpec(t),r=new URLSearchParams({maxResults:String(Math.max(1,Math.min(100,Number(pageSize)||50)))}),i=[],a=spec.text.trim();if(a&&spec.field===`sender`)a=`from:${a}`;else if(a&&spec.field===`subject`)a=`subject:${a}`;e===`inbox`||e===`triage`?i.push(`INBOX`):e===`pinned`?i.push(await this.openedLabel(false)):e===`starred`?(i.push(`STARRED`),r.set(`includeSpamTrash`,`true`)):e===`trash`?(i.push(`TRASH`),r.set(`includeSpamTrash`,`true`)):a+=e===`done`?` -in:inbox -in:trash -in:spam -in:sent`:` -in:trash -in:spam`;if(spec.mode!==`any`&&spec.start){let from=Math.floor(new Date(spec.start).getTime()/1000),end=spec.mode===`single`?new Date(spec.start).getTime()+59999:spec.end?new Date(spec.end).getTime():null;if(Number.isFinite(from))a+=` after:${from-1}`;if(end!==null&&Number.isFinite(end))a+=` before:${Math.ceil(end/1000)+1}`}if(e===`pinned`&&!i[0])return{messages:[],nextPage:null};for(let e of i)r.append(`labelIds`,e);a.trim()&&r.set(`q`,a.trim()),n&&r.set(`pageToken`,n);let o=await this.call(`/messages?${r.toString()}`),s=[];
@@ -337,7 +349,31 @@ async function $e(){
   s.push(...batch.filter(Boolean));
   if(typeof onProgress==='function')onProgress(filterLoaded(s));
  }
- return{messages:filterLoaded(s),nextPage:o.nextPageToken??null}}async detail(e){return this.details(e,!0)}async keep(e){let t=v((await this.details(e)).from),n=w(await this.filters(),t);return await this.call(`/messages/${encodeURIComponent(e)}/modify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({addLabelIds:n.addLabelIds,removeLabelIds:n.removeLabelIds})}),{matched:n.matched,skipped:n.skipped}}async done(e){await this.call(`/messages/${encodeURIComponent(e)}/modify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({removeLabelIds:[`INBOX`]})})}async pin(e){let t=!(await this.details(e)).pinned;return await this.call(`/messages/${encodeURIComponent(e)}/modify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify(t?{addLabelIds:[`STARRED`]}:{removeLabelIds:[`STARRED`]})}),t}async snoozeLocal(e){await this.done(e)}async wake(e){await this.call(`/messages/${encodeURIComponent(e)}/modify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({addLabelIds:[`INBOX`]})})}async previewSender(e){let t=v((await this.details(e)).from),n=await this.call(`/messages?${new URLSearchParams({q:`from:${t} -in:trash -in:spam -in:drafts`,maxResults:`1`}).toString()}`),r=(await this.filters()).some(e=>C(e,t)&&(e.action?.addLabelIds??[]).includes(`TRASH`));return{sender:t,count:n.resultSizeEstimate??0,existing_rule:r,exact:!1}}async exactSenderMessages(e){let t=[],n;for(;;){let r=new URLSearchParams({q:`from:${e} -in:trash -in:spam -in:drafts`,maxResults:`500`});n&&r.set(`pageToken`,n);let i=await this.call(`/messages?${r.toString()}`);for(let n of i.messages??[])try{let r=await this.details(n.id);r.from===e&&t.push([r.id,r.labels.includes(`INBOX`)])}catch(e){if(e instanceof Error&&e.message.includes(`404`))continue;throw e}if(n=i.nextPageToken,!n)break}return t}async blockSender(e){let t=lt(),n=null,r=!1;try{let i=v((await this.details(e)).from);if(i===y(await this.profileEmail()))throw Error(`Blocking your own Gmail address is not allowed`);let a=(await this.filters()).find(e=>C(e,i)&&(e.action?.addLabelIds??[]).includes(`TRASH`));a?.id?n=a.id:(n=(await this.call(`/settings/filters`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({criteria:{from:i},action:{addLabelIds:[`TRASH`],removeLabelIds:[`INBOX`]}})})).id??null,r=!0),this.journal.record({id:t,email:i,filter_id:n,owned:r,status:`running`,created:new Date().toISOString(),count:0,messages:[]});let o=await this.exactSenderMessages(i);for(let e=0;e<o.length;e+=500){let n=o.slice(e,e+500);this.journal.addMessages(t,n.map(([e,t])=>({message_id:e,was_inbox:t}))),await this.batchModify(n.map(([e])=>e),[`TRASH`],[`INBOX`]),this.journal.setCount(t,e+n.length)}return this.journal.setStatus(t,`complete`),{operation_id:t,count:o.length,sender:i,filter_created:r}}catch(e){if(this.journal.get(t)&&this.journal.setStatus(t,`failed`),n&&r)try{await this.restoreOperation(t)}catch{}throw e instanceof Error?e:Error(`Gmail request failed`)}}async markUnread(e){await this.batchModify([e],[`UNREAD`],[])}async markRead(e){await this.batchModify([e],[],[`UNREAD`])}async trashOne(e){let t=lt(),n=await this.details(e),r=n.labels.includes(`INBOX`);return this.journal.record({id:t,email:n.from,filter_id:null,owned:!1,status:`running`,created:new Date().toISOString(),count:0,messages:[]}),this.journal.addMessages(t,[{message_id:e,was_inbox:r}]),await this.batchModify([e],[`TRASH`],[`INBOX`]),this.journal.setCount(t,1),this.journal.setStatus(t,`complete`),{operation_id:t}}async restoreOperation(e){let t=this.journal.get(e);if(!t||t.status===`undone`)throw Error(`Undo operation not found or already undone`);t.owned&&t.filter_id&&await this.call(`/settings/filters/${encodeURIComponent(t.filter_id)}`,{method:`DELETE`});let n=t.messages.map(e=>e.message_id);await this.batchModify(n,[],[`TRASH`]);let r=t.messages.filter(e=>e.was_inbox).map(e=>e.message_id);return await this.batchModify(r,[`INBOX`],[]),this.journal.setStatus(e,`undone`),n.length}async undo(e){return{count:await this.restoreOperation(e)}}async rules(){
+ return{messages:filterLoaded(s),nextPage:o.nextPageToken??null}}async detail(e){return this.details(e,!0)}async keep(e){let t=v((await this.details(e)).from),n=w(await this.filters(),t);return await this.call(`/messages/${encodeURIComponent(e)}/modify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({addLabelIds:n.addLabelIds,removeLabelIds:n.removeLabelIds})}),{matched:n.matched,skipped:n.skipped}}async done(e){await this.call(`/messages/${encodeURIComponent(e)}/modify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({removeLabelIds:[`INBOX`]})})}async pin(e){let t=!(await this.details(e)).pinned;return await this.call(`/messages/${encodeURIComponent(e)}/modify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify(t?{addLabelIds:[`STARRED`]}:{removeLabelIds:[`STARRED`]})}),t}async snoozeLocal(e){await this.done(e)}async wake(e){await this.call(`/messages/${encodeURIComponent(e)}/modify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({addLabelIds:[`INBOX`]})})}async previewSender(e){let t=v((await this.details(e)).from),n=await this.call(`/messages?${new URLSearchParams({q:`from:${t} -in:trash -in:spam -in:drafts`,maxResults:`1`}).toString()}`),r=(await this.filters()).some(e=>C(e,t)&&(e.action?.addLabelIds??[]).includes(`TRASH`));return{sender:t,count:n.resultSizeEstimate??0,existing_rule:r,exact:!1}}async exactSenderMessages(e){let t=[],n;for(;;){let r=new URLSearchParams({q:`from:${e} -in:trash -in:spam -in:drafts`,maxResults:`500`});n&&r.set(`pageToken`,n);let i=await this.call(`/messages?${r.toString()}`);for(let n of i.messages??[])try{let r=await this.details(n.id);r.from===e&&t.push([r.id,r.labels.includes(`INBOX`)])}catch(e){if(e instanceof Error&&e.message.includes(`404`))continue;throw e}if(n=i.nextPageToken,!n)break}return t}async blockSender(e,onProgress){let t=lt(),n=null,r=!1,futureActive=!1,futureError='';try{
+ let i=v((await this.details(e)).from);
+ if(i===y(await this.profileEmail()))throw Error('Blocking your own Gmail address is not allowed');
+ try{
+  const matching=(await this.filters()).find(rule=>C(rule,i)&&(rule.action?.addLabelIds??[]).includes('TRASH'));
+  if(matching?.id)n=matching.id;
+  else{n=(await this.call('/settings/filters',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({criteria:{from:i},action:{addLabelIds:['TRASH'],removeLabelIds:['INBOX']}})})).id??null;r=!!n}
+  futureActive=!!n;
+ }catch(error){futureError=String(error?.message||'Gmail rejected the future filter.');console.warn('Future delete filter could not be installed:',futureError)}
+ this.journal.record({id:t,email:i,filter_id:n,owned:r,status:'running',created:new Date().toISOString(),count:0,messages:[]});
+ const matches=await this.exactSenderMessages(i);
+ for(let index=0;index<matches.length;index+=500){
+  const batch=matches.slice(index,index+500);
+  this.journal.addMessages(t,batch.map(([id,was_inbox])=>({message_id:id,was_inbox})));
+  await this.batchModify(batch.map(([id])=>id),['TRASH'],['INBOX']);
+  this.journal.setCount(t,index+batch.length);
+  onProgress?.({sender:i,count:index+batch.length,stage:'deleting'});
+ }
+ this.journal.setStatus(t,'complete');
+ return{operation_id:t,count:matches.length,sender:i,filter_created:r,futureActive,futureError};
+ }catch(error){
+  if(this.journal.get(t))this.journal.setStatus(t,'failed');
+  if(n&&r)try{await this.restoreOperation(t)}catch{}
+  throw error instanceof Error?error:Error('Gmail request failed');
+ }}async markUnread(e){await this.batchModify([e],[`UNREAD`],[])}async markRead(e){await this.batchModify([e],[],[`UNREAD`])}async trashOne(e){let t=lt(),n=await this.details(e),r=n.labels.includes(`INBOX`);return this.journal.record({id:t,email:n.from,filter_id:null,owned:!1,status:`running`,created:new Date().toISOString(),count:0,messages:[]}),this.journal.addMessages(t,[{message_id:e,was_inbox:r}]),await this.batchModify([e],[`TRASH`],[`INBOX`]),this.journal.setCount(t,1),this.journal.setStatus(t,`complete`),{operation_id:t}}async restoreOperation(e){let t=this.journal.get(e);if(!t||t.status===`undone`)throw Error(`Undo operation not found or already undone`);t.owned&&t.filter_id&&await this.call(`/settings/filters/${encodeURIComponent(t.filter_id)}`,{method:`DELETE`});let n=t.messages.map(e=>e.message_id);await this.batchModify(n,[],[`TRASH`]);let r=t.messages.filter(e=>e.was_inbox).map(e=>e.message_id);return await this.batchModify(r,[`INBOX`],[]),this.journal.setStatus(e,`undone`),n.length}async undo(e){return{count:await this.restoreOperation(e)}}async rules(){
  const filters=await this.filters();
  let labelNames={};
  try{
