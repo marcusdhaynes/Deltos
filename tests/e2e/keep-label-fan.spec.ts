@@ -68,7 +68,7 @@ test('Triage right-drag can release directly over a predicted bubble',async({pag
  if(!targetBox)throw Error('No prediction bubble');
  await page.mouse.move(targetBox.x+targetBox.width/2,targetBox.y+targetBox.height/2,{steps:10});
  await page.mouse.up();
- await expect(page.locator('.triage-notif')).toContainText('Archive Filter');
+ await expect(page.locator('.triage-notif')).toContainText('Archived + labeled');
  await expect(page.locator('.deck-card.deck-top .deck-subject')).not.toHaveText(original);
 });
 
@@ -289,8 +289,8 @@ test('Each of all five archive filter bubbles can be highlighted and chosen by d
    await page.getByRole('textbox',{name:'New Gmail label'}).fill('Custom Sender Archive');
    await page.getByRole('button',{name:'Create & Archive'}).click();
   }
-  await expect(page.locator('#toast-root')).toContainText('Archive Filter');
-  await expect(page.locator('#toast-root')).toContainText('archived and labeled');
+  await expect(page.locator('#toast-root')).toContainText('Archived + labeled');
+  await expect(page.locator('#toast-root')).toContainText('Archived + labeled');
   await expect(page.locator('.compact-folder-inbox .compact-message').filter({hasText:'Lena Carter'})).toHaveCount(0);
   await expect(page.locator('.deltos-fan-choice')).toHaveCount(0);
  }
