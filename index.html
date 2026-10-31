@@ -720,7 +720,7 @@ function DeltosKeepFan({request,backend,history,onPick,onClose}){
    // The stage origin is the exact center of the + bubble, with two
    // vertically mirrored suggestions above and two below.
    const leftMargin=mobile?162:compact?189:204;
-   const rightMargin=mobile?39:compact?39:42;
+   const rightMargin=mobile?43:compact?45:46;
    const verticalMargin=mobile?(compact?157:194):(compact?175:236);
    const fit=(value,minimum,maximum)=>Math.max(minimum,Math.min(maximum,value));
    setPosition({
