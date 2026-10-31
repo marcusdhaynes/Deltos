@@ -88,6 +88,41 @@
     return {...label,score};
   }).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name)).slice(0,4).map(({score,...label})=>label);
  }
+
+ // Always offer four choices, even for a freshly emptied Gmail account.
+ // A predicted label that does not yet exist is only created if the user selects it.
+ const DISPLAY={va:'VA',personal:'Personal'};
+ const STARTERS=['finance','bills','work','personal','updates','shopping','legal','travel','storage','subscriptions'];
+ function suggest(message,labels,history=[],rules=[]){
+   const existing=rank(message,labels,history,rules);
+   if(existing.length>=4)return existing;
+   const used=new Set(existing.map(x=>keyOf(x.name)));
+   for(const label of labels||[])if(label?.name)used.add(keyOf(label.name));
+   const sender=normalize([message?.sender,message?.from].join(' '));
+   const subject=normalize(message?.subject);
+   const snippet=normalize((message?.body||message?.snippet||'').slice(0,5000));
+   const senderWords=new Set(words(sender)),subjectWords=new Set(words(subject)),bodyWords=new Set(words(snippet));
+   const candidates=Object.entries({...THEMES,personal:'personal family friends private household home life children spouse'}).map(([theme,terms])=>{
+     const topicWords=terms.split(' ');
+     let score=0;
+     if(theme.length>3&&(sender.includes(theme)||subject.includes(theme)))score+=32;
+     for(const word of topicWords){
+       if(senderWords.has(word))score+=12;
+       if(subjectWords.has(word))score+=10;
+       if(bodyWords.has(word))score+=3;
+     }
+     const defaultPosition=STARTERS.indexOf(theme);
+     if(defaultPosition>=0)score+=Math.max(0,10-defaultPosition);
+     return {theme,score,name:DISPLAY[theme]||theme[0].toUpperCase()+theme.slice(1)};
+   }).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name));
+   for(const {name} of candidates){
+     if(existing.length>=4)break;
+     if(used.has(keyOf(name)))continue;
+     used.add(keyOf(name));
+     existing.push({id:'deltos-suggested-'+keyOf(name),name,createName:name});
+   }
+   return existing;
+ }
  function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(36);}
  function learn(message,labelId){
   const address=String(message?.from||'').toLowerCase();
@@ -99,5 +134,5 @@
    localStorage.setItem(storageKey,JSON.stringify(data));
   }catch{}
  }
- root.DeltosLabelIntelligence={rank,learn};
+ root.DeltosLabelIntelligence={rank,suggest,learn};
 })(typeof window!=='undefined'?window:globalThis);
