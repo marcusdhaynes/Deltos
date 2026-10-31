@@ -33,7 +33,7 @@ function methodAfter(needle:string,before:string){
 const demoMethod=methodAfter(' async ensureSenderLabel(from,labelId){','var g=class{demo=!0');
 const gmailMethod=methodAfter(' async ensureSenderLabel(from,labelId){','var ut=class{demo=!1');
 
-test('Demo labels every exact-sender message across Inbox, Archive, Spam and Trash without changing mail state',async()=>{
+test('Demo archives and labels every sender message across Inbox, Archive, Spam and Trash, preserving read state',async()=>{
  const same='billing@sender.example';
  const messages=new Map([
   ['inbox',{from:same,labels:['INBOX','UNREAD']}],
@@ -54,6 +54,7 @@ test('Demo labels every exact-sender message across Inbox, Archive, Spam and Tra
   expect(labels).toContain('demo-label-paperwork');
  }
  expect(messages.get('inbox')!.labels).toContain('UNREAD');
+ expect(messages.get('inbox')!.labels).not.toContain('INBOX');
  expect(messages.get('spam')!.labels).toContain('SPAM');
  expect(messages.get('trash')!.labels).toContain('TRASH');
  expect(messages.get('other')!.labels).toEqual(['INBOX']);
@@ -91,7 +92,7 @@ test('Gmail first installs an idempotent sender filter then labels every matchin
  expect(result).toEqual({sender:'billing@sender.example',count:5,filterCreated:true});
  expect(calls[0]).toEqual({
   path:'/settings/filters',
-  body:{criteria:{from:'billing@sender.example'},action:{addLabelIds:['Label_123']}}
+  body:{criteria:{from:'billing@sender.example'},action:{addLabelIds:['Label_123'],removeLabelIds:['INBOX']}}
  });
  const searches=calls.filter(c=>c.path.startsWith('/messages?')).map(c=>new URLSearchParams(c.path.split('?')[1]));
  expect(searches).toHaveLength(2);
@@ -104,7 +105,7 @@ test('Gmail first installs an idempotent sender filter then labels every matchin
  expect(bulk.flatMap(batch=>batch.ids)).toEqual(['inbox','archive','spam','trash','sent']);
  for(const batch of bulk){
   expect(batch.add).toEqual(['Label_123']);
-  expect(batch.remove).toEqual([]);
+  expect(batch.remove).toEqual(['INBOX']);
  }
  const before=calls.length;
  const again=await gmailMethod.call(gmail,'billing@sender.example','Label_123');
@@ -112,7 +113,7 @@ test('Gmail first installs an idempotent sender filter then labels every matchin
  expect(calls.slice(before).some(c=>c.path==='/settings/filters')).toBe(false);
 });
 
-test('Read + Keep applies the same label to both historic messages from one sender',async({page})=>{
+test('Archive Filter moves both historic messages from one sender out of Inbox',async({page})=>{
  await page.goto('/');
  const row=page.locator('.compact-folder-inbox .compact-message')
   .filter({hasText:'Lena Carter'}).first();
@@ -129,13 +130,11 @@ test('Read + Keep applies the same label to both historic messages from one send
  await page.mouse.move(target.x+target.width/2,target.y+target.height/2,{steps:10});
  await page.mouse.up();
  await page.getByRole('textbox',{name:'New Gmail label'}).fill('Sender Paperwork');
- await page.getByRole('button',{name:'Create & Keep'}).click();
+ await page.getByRole('button',{name:'Create & Archive'}).click();
  await expect(page.getByRole('group',{name:'Predictive Read and Keep labels'})).toHaveCount(0);
- await expect(page.locator('#toast-root')).toContainText('2 messages from lena@atelier-studio.com labeled');
- // The second message remains in Inbox: only its label was updated.
- // Cross-folder and future-filter behavior is verified against both shipped
- // backend implementations in the tests above.
+ await expect(page.locator('#toast-root')).toContainText('2 messages from lena@atelier-studio.com archived and labeled');
+ // Both messages leave Inbox and Triage after archive-and-label.
  const matching=page.locator('.compact-folder-inbox .compact-message').filter({hasText:'Lena Carter'});
- await expect(matching).toHaveCount(2);
+ await expect(matching).toHaveCount(0);
  await expect(page.locator('#toast-root')).toContainText('future mail filtered');
 });
