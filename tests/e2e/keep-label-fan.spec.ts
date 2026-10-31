@@ -68,7 +68,7 @@ test('Triage right-drag can release directly over a predicted bubble',async({pag
  if(!targetBox)throw Error('No prediction bubble');
  await page.mouse.move(targetBox.x+targetBox.width/2,targetBox.y+targetBox.height/2,{steps:10});
  await page.mouse.up();
- await expect(page.locator('.triage-notif')).toContainText('Archived into');
+ await expect(page.locator('.triage-notif')).toContainText('Archive Filter');
  await expect(page.locator('.deck-card.deck-top .deck-subject')).not.toHaveText(original);
 });
 
@@ -297,7 +297,7 @@ test('Each of all five archive filter bubbles can be highlighted and chosen by d
 });
 
 test('All five archive filter bubbles accept a drag-to-release from a Triage card',async({page})=>{
- for(const rank of ['1','2','3','4','new']){
+ for(const [iteration,rank] of ['1','2','3','4','new'].entries()){
   await page.goto('/');
   await page.getByRole('button',{name:'Triage',exact:true}).click();
   const card=page.locator('.deck-card.deck-top');
@@ -315,7 +315,7 @@ test('All five archive filter bubbles accept a drag-to-release from a Triage car
    await page.getByRole('textbox',{name:'New Gmail label'}).fill('Custom Triage Archive');
    await page.getByRole('button',{name:'Create & Archive'}).click();
   }
-  await expect(page.locator('.triage-filter-impact [data-filter-kind="archive"]')).toContainText('2');
+  await expect(page.locator('.triage-filter-impact [data-filter-kind="archive"]')).toContainText('Archive filtered: '+(2*(iteration+1)));
   await expect(page.locator('.deck-card.deck-top .deck-subject')).not.toHaveText(oldSubject);
   await expect(page.locator('.deltos-fan-choice')).toHaveCount(0);
  }
