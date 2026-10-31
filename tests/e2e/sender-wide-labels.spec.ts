@@ -30,8 +30,8 @@ function methodAfter(needle:string,before:string){
   validSender,addressFrom,simpleSenderFilter,()=> 'random-id'
  ) as (from:string,labelId:string)=>Promise<{sender:string,count:number,filterCreated:boolean}>;
 }
-const demoMethod=methodAfter(' async ensureSenderLabel(from,labelId){','var g=class{demo=!0');
-const gmailMethod=methodAfter(' async ensureSenderLabel(from,labelId){','var ut=class{demo=!1');
+const demoMethod=methodAfter(' async ensureSenderLabel(from,labelId,onProgress){','var g=class{demo=!0');
+const gmailMethod=methodAfter(' async ensureSenderLabel(from,labelId,onProgress){','var ut=class{demo=!1');
 
 test('Demo archives and labels every sender message across Inbox, Archive, Spam and Trash, preserving read state',async()=>{
  const same='billing@sender.example';
