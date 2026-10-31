@@ -101,6 +101,9 @@ test('The wider fan forms a rounded arc with separated circular targets on deskt
   expect(one.cy).toBeLessThan(plus.cy-40);
   expect(plus.cy).toBeLessThan(two.cy-40);
   expect(two.cy).toBeLessThan(four.cy-40);
+  // Both arcs mirror vertically about the literal center of the + button.
+  expect(Math.abs(plus.cy-(one.cy+two.cy)/2)).toBeLessThan(1);
+  expect(Math.abs(plus.cy-(three.cy+four.cy)/2)).toBeLessThan(1);
   for(let a=0;a<boxes.length;a++)for(let b=a+1;b<boxes.length;b++){
    const first=boxes[a],second=boxes[b];
    const distance=Math.hypot(first.cx-second.cx,first.cy-second.cy);
@@ -108,4 +111,46 @@ test('The wider fan forms a rounded arc with separated circular targets on deskt
   }
   await page.getByRole('button',{name:'Cancel label selection'}).click();
  }
+});
+
+
+test('Four predictive bubbles remain visible when the Gmail account has no user labels',async({page})=>{
+ await page.goto('/');
+ await page.evaluate(()=>{
+  const engine=(window as any).DeltosLabelIntelligence;
+  const realSuggest=engine.suggest;
+  engine.suggest=(message:any,_labels:any[],history:any[],rules:any[])=>realSuggest(message,[],history,rules);
+ });
+ const row=page.locator('.compact-folder-inbox .compact-message').first();
+ await expect(row).toBeVisible();
+ await row.focus();
+ await page.keyboard.press('ArrowRight');
+ const choices=page.locator('.deltos-fan-choice:not(.deltos-fan-add)');
+ await expect(choices).toHaveCount(4);
+ await expect(page.getByRole('button',{name:'Create a new label'})).toBeVisible();
+ const names=await choices.allTextContents();
+ expect(new Set(names.map(n=>n.trim())).size).toBe(4);
+ for(const name of names)expect(name.trim().length).toBeGreaterThan(1);
+ // Selecting a suggested (not existing) label must create it and apply it.
+ const first=choices.first();
+ const chosen=(await first.innerText()).trim();
+ await first.click();
+ await expect(page.getByRole('group',{name:'Predictive Read and Keep labels'})).toHaveCount(0);
+ await expect(page.locator('#toast-root')).toContainText(chosen);
+});
+
+test('Prediction engine infers Storage and Bills from mail even without preexisting labels',async({page})=>{
+ await page.goto('/');
+ const suggestions=await page.evaluate(()=>{
+  const engine=(window as any).DeltosLabelIntelligence;
+  return engine.suggest({
+   id:'example',sender:'Extra Space Storage',from:'billing@extraspace.com',
+   subject:'Your monthly storage unit invoice is due',
+   snippet:'Please pay your storage bill for this month.'
+  },[],[],[]);
+ });
+ expect(suggestions).toHaveLength(4);
+ expect(suggestions[0].name).toBe('Storage');
+ expect(suggestions.some((l:{name:string})=>l.name==='Bills')).toBe(true);
+ expect(suggestions.every((l:{createName:string})=>!!l.createName)).toBe(true);
 });
