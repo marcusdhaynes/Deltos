@@ -23,7 +23,8 @@
 .deltos-fan-form-actions button{padding:10px 17px;border-radius:11px;border:1px solid var(--line,#ddd);background:var(--soft,#f3f5f8);color:var(--ink,#222);cursor:pointer}
 .deltos-fan-form-actions button[type=submit]{background:#4485e8;color:#fff}
 .deltos-fan-error{font-size:12px;color:#cb3f50;max-width:260px}
-@keyframes deltos-fan-pop{from{opacity:0;scale:.8}to{opacity:1;scale:1}}
+/* Fade in without changing bubble hitboxes or their mathematically centered positions. */
+@keyframes deltos-fan-pop{from{opacity:0}to{opacity:1}}
 /* Compact vertical and horizontal radii keep every bubble reachable on shorter screens. */
 @media(max-height:650px){
  .deltos-fan-stage{--deltos-fan-near-x:-66px;--deltos-fan-far-x:-148px;--deltos-fan-add-x:0px;--deltos-fan-near-y:74px;--deltos-fan-far-y:135px}
