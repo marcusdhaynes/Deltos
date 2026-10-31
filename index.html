@@ -719,9 +719,9 @@ function DeltosKeepFan({request,backend,history,onPick,onClose}){
    const mobile=innerWidth<=600,compact=innerHeight<=650;
    // The stage origin is the exact center of the + bubble, with two
    // vertically mirrored suggestions above and two below.
-   const leftMargin=mobile?156:compact?186:204;
+   const leftMargin=mobile?162:compact?189:204;
    const rightMargin=mobile?39:compact?39:42;
-   const verticalMargin=mobile?(compact?157:194):(compact?175:232);
+   const verticalMargin=mobile?(compact?157:194):(compact?175:236);
    const fit=(value,minimum,maximum)=>Math.max(minimum,Math.min(maximum,value));
    setPosition({
     left:fit(rect?rect.right+22:innerWidth*.70,leftMargin,Math.max(leftMargin,innerWidth-rightMargin)),
