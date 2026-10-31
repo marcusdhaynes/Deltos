@@ -137,7 +137,7 @@ test('Archive Filter moves both historic messages from one sender out of Inbox',
  // Both messages leave Inbox and Triage after archive-and-label.
  const matching=page.locator('.compact-folder-inbox .compact-message').filter({hasText:'Lena Carter'});
  await expect(matching).toHaveCount(0);
- await expect(page.locator('#toast-root')).toContainText('future mail filtered');
+ await expect(page.locator('#toast-root')).toContainText('future Gmail filter active');
 });
 
 test('Backfills every Gmail sender message even when future filter creation is denied',async()=>{
