@@ -72,15 +72,21 @@ test('Inbox swipe stamps show all four directions while dragging',async({page})=
   const stamp=row.locator('.deltos-compact-stamp.stamp-'+direction);
   await expect(stamp).toBeVisible();
   await expect(stamp).toHaveCSS('opacity','1');
-  await page.mouse.up();
-  if(direction==='left')await expect(page.getByRole('dialog')).toBeVisible();
   if(direction==='right'){
-   await expect(page.getByRole('button',{name:'Create a new label'})).toBeVisible();
-   await page.getByRole('button',{name:'Create a new label'}).click();
+   const plus=page.getByRole('button',{name:'Create a new label'});
+   await expect(plus).toBeVisible();
+   const target=await plus.boundingBox();
+   if(!target)throw Error('New-label bubble not rendered');
+   await page.mouse.move(target.x+target.width/2,target.y+target.height/2,{steps:12});
+   await page.mouse.up();
+   await expect(page.getByRole('textbox',{name:'New Gmail label'})).toBeVisible();
    await page.getByRole('textbox',{name:'New Gmail label'}).fill('Swipe Test Label');
    await page.getByRole('button',{name:'Create & Keep'}).click();
    await expect(page.locator('#toast-root')).toContainText('Read + Keep');
+  }else{
+   await page.mouse.up();
   }
+  if(direction==='left')await expect(page.getByRole('dialog')).toBeVisible();
   if(direction==='up')await expect(page.locator('#toast-root')).toContainText('Marked unread');
   if(direction==='down')await expect(page.locator('#toast-root')).toContainText('Moved to Trash');
  }
