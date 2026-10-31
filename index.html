@@ -715,10 +715,14 @@ function deltosHighlightFanChoice(x,y){
 function deltosPortraitDragStyle(drag,fanActive,kind){
  if(!drag||(innerWidth>600&&innerWidth>=innerHeight))return null;
  const dx=Number(drag.dx)||0,dy=Number(drag.dy)||0;
- if(dx<=8||(!fanActive&&dx<Math.abs(dy)*.65))return null;
- // The further the pointer travels into the fan, the more room the card gives it.
- const p=Math.max(0,Math.min(1,(dx-8)/126));
- const eased=p*p*(3-2*p),near=Math.max(0,Math.min(1,drag.near||0));
+ const near=fanActive?Math.max(0,Math.min(1,drag.near||0)):0;
+ // Preserve the reduced card while the finger crosses the fan, even when the
+ // outer bubble's x happens to equal the touch origin on a narrow phone.
+ if(!fanActive&&(dx<=8||dx<Math.abs(dy)*.65))return null;
+ const progress=Math.max(0,Math.min(1,(dx-8)/126));
+ const p=Math.max(progress,near*.94);
+ if(p<=0)return null;
+ const eased=p*p*(3-2*p);
  const scale=Math.max(.61,1-(kind==='triage'?.30:.25)*eased-.055*near);
  const left=-(Math.min(innerWidth*.23,112)*eased)+Math.min(10,dx*.045);
  const upDown=Math.max(-24,Math.min(24,dy*.11));
