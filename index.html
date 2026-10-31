@@ -37,6 +37,24 @@ Sent from the Inbox Reborn demo.`,timestamp:e-o*3600*1e3,bundle:a,unread:s,pinne
   if(!(await this.listLabels()).some(l=>l.id===labelId))throw Error('Label not found.');
   const m=this.get(id);if(!m.labels.includes(labelId))m.labels.push(labelId);
  }async removeLabel(id,labelId){const m=this.get(id);m.labels=m.labels.filter(l=>l!==labelId)}
+ // Categorize every message from this exact sender, regardless of folder or read status.
+ // The matching rule also labels subsequent messages arriving in demo mode.
+ async ensureSenderLabel(from,labelId){
+  const sender=v(y(String(from||'')));
+  if(!(await this.listLabels()).some(label=>label.id===labelId))throw Error('Label not found.');
+  let existing=[...this.ruleMap.values()].find(rule=>rule.email===sender&&!rule.blocked&&rule.label===labelId);
+  if(!existing){
+   const id='demo-sender-label-'+h().slice(0,8);
+   this.ruleMap.set(id,{id,email:sender,blocked:false,label:labelId});
+  }
+  let count=0;
+  for(const message of this.messages.values()){
+   if(y(String(message.from||''))!==sender)continue;
+   if(!message.labels.includes(labelId))message.labels.push(labelId);
+   count++;
+  }
+  return{sender,count,filterCreated:!existing};
+ }
  async rules(){return[...this.ruleMap.values()].map(rule=>({...rule,criteria:{from:rule.email},action:{addLabelIds:rule.blocked?[`TRASH`]:[rule.label],removeLabelIds:rule.blocked?[`INBOX`]:[]},labelNames:{Finance:`Finance`,Trips:`Trips`}}))}async removeRule(e){if(!this.ruleMap.has(e))throw Error(`Filter not found`);this.ruleMap.delete(e)}async compose(e,t,n,c=``,b=``){let r=e.split(/[,\n;]+/).map(e=>e.trim()).filter(Boolean);if(!r.length||r.length>15)throw Error(`Enter one or more valid recipient addresses`);return this.sent.push({to:e,cc:c,bcc:b,subject:t,body:n}),{demo:!0}}async reply(e,t){let n=this.get(e);this.sent.push({to:n.from,subject:`Re: ${n.subject}`,body:t})}async saveDraft(e,t,n,c=``,b=``){this.sent.push({to:e,cc:c,bcc:b,subject:`Draft: ${t}`,body:n})}},_=/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;function v(e){let t=e.trim().toLowerCase();if(t.length>254||!_.test(t))throw Error(`Invalid sender email address`);return t}function y(e){let t=e.match(/<([^<>]*)>\s*$/);return(t?t[1]:e).trim().toLowerCase()}function b(e,t){let n=e.match(/^\s*"([^"]*)"/)||e.match(/^\s*([^<>"(]+?)\s*(<|$)/);return(n?n[1]:``).trim().replace(/^"|"$/g,``)||t.split(`@`)[0]||t}function x(e){return String(e).replace(/[^\p{L}\p{N} ]/gu,` `).trim().split(/\s+/).slice(0,2).map(e=>e[0]?.toUpperCase()||``).join(``)||`?`}function ee(e){let t=0;for(let n of e)t=(t*31+n.charCodeAt(0))%360;return`hsl(${t} 44% 57%)`}function te(e){let t=new Date(e),n=new Date;return t.toDateString()===n.toDateString()?t.toLocaleTimeString([],{hour:`numeric`,minute:`2-digit`}):t.toLocaleDateString([],{month:`short`,day:`numeric`})}function ne(e){let t=new Date(e),n=new Date,r=new Date(n);return r.setDate(n.getDate()-1),t.toDateString()===n.toDateString()?`Today`:t.toDateString()===r.toDateString()?`Yesterday`:t.getMonth()===n.getMonth()&&t.getFullYear()===n.getFullYear()?`This month`:t.toLocaleDateString([],{month:`long`,year:`numeric`})}function S(e,t,n){let r=(t+` `+n).toLowerCase();return[`receipt`,`order confirmed`,`your order`,`shipped`,`delivery`].some(e=>r.includes(e))?`Purchases`:[`flight`,`boarding pass`,`itinerary`,`hotel booking`].some(e=>r.includes(e))?`Trips`:[`statement`,`payment due`,`bank account`,`invoice`].some(e=>r.includes(e))?`Finance`:e.includes(`CATEGORY_PROMOTIONS`)?`Promos`:e.includes(`CATEGORY_SOCIAL`)?`Social`:e.includes(`CATEGORY_UPDATES`)||e.includes(`CATEGORY_FORUMS`)?`Updates`:`Personal`}function C(e,t){let n=e.criteria??{},r=n.from;if(!r||typeof r!=`string`||Object.keys(n).some(e=>e!==`from`&&e!==`excludeChats`))return!1;let i=r.trim().replace(/^"|"$/g,``);return y(i)===t||i.toLowerCase()===t}function w(e,t){let n=new Set,r=new Set,i=0,a=0;for(let o of e){if(!C(o,t))continue;let e=o.action??{},s=e.addLabelIds??[];if(s.includes(`TRASH`)||s.includes(`SPAM`))a+=1;else{i+=1;for(let e of s)e!==`TRASH`&&e!==`SPAM`&&n.add(e);for(let t of e.removeLabelIds??[])[`INBOX`,`TRASH`,`SPAM`].includes(t)||r.add(t)}}n.add(`INBOX`);for(let e of n)r.delete(e);return{addLabelIds:[...n].sort(),removeLabelIds:[...r].sort(),matched:i,skipped:a}}function re(e){try{let t=atob(e.replace(/-/g,`+`).replace(/_/g,`/`)),n=Uint8Array.from(t,e=>e.charCodeAt(0));return new TextDecoder(`utf-8`,{fatal:!1}).decode(n)}catch{return``}}
 /* Preserve the formatted HTML part of a Gmail MIME message, independently
    from the plain-text part used for forwarding, drafting and searching. */
@@ -265,6 +283,39 @@ async function $e(){
  }
  async applyLabel(id,labelId){await this.call('/messages/'+encodeURIComponent(id)+'/modify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({addLabelIds:[labelId]})})}
  async removeLabel(id,labelId){await this.call('/messages/'+encodeURIComponent(id)+'/modify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({removeLabelIds:[labelId]})})}
+ // The future rule is installed before backfilling the entire mailbox. Gmail
+ // filters do not retroactively label old mail, so every search page is batched.
+ // Unlike Read + Keep on the selected message, this ONLY adds the chosen label.
+ async ensureSenderLabel(from,labelId){
+  const sender=v(y(String(from||'')));
+  if(!labelId)throw Error('A Gmail label is required.');
+  const existing=await this.filters();
+  const hasRule=existing.some(rule=>C(rule,sender)&&(rule.action?.addLabelIds||[]).includes(labelId));
+  if(!hasRule)await this.call('/settings/filters',{
+   method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({criteria:{from:sender},action:{addLabelIds:[labelId]}})
+  });
+  let count=0,pageToken=null;
+  const visitedTokens=new Set(),seenIds=new Set();
+  do{
+   const params=new URLSearchParams({q:'from:'+sender,maxResults:'500',includeSpamTrash:'true'});
+   if(pageToken)params.set('pageToken',pageToken);
+   const page=await this.call('/messages?'+params.toString());
+   const ids=(page.messages||[]).map(item=>item.id).filter(id=>{
+    if(!id||seenIds.has(id))return false;
+    seenIds.add(id);return true;
+   });
+   if(ids.length)await this.batchModify(ids,[labelId],[]);
+   count+=ids.length;
+   pageToken=page.nextPageToken||null;
+   if(pageToken){
+    if(visitedTokens.has(pageToken))throw Error('Gmail returned a repeated page; sender labeling stopped after '+count+' messages.');
+    visitedTokens.add(pageToken);
+   }
+  }while(pageToken);
+  return{sender,count,filterCreated:!hasRule};
+ }
+
  async batchModify(e,t=[],n=[]){for(let r=0;r<e.length;r+=500)await this.call(`/messages/batchModify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({ids:e.slice(r,r+500),addLabelIds:t,removeLabelIds:n})})}async profileEmail(){return(await this.call(`/profile`)).emailAddress??``}async list(e,t,n,onProgress,pageSize=50){let spec=deltosSpec(t),r=new URLSearchParams({maxResults:String(Math.max(1,Math.min(100,Number(pageSize)||50)))}),i=[],a=spec.text.trim();if(a&&spec.field===`sender`)a=`from:${a}`;else if(a&&spec.field===`subject`)a=`subject:${a}`;e===`inbox`||e===`triage`?i.push(`INBOX`):e===`pinned`?i.push(await this.openedLabel(false)):e===`starred`?(i.push(`STARRED`),r.set(`includeSpamTrash`,`true`)):e===`trash`?(i.push(`TRASH`),r.set(`includeSpamTrash`,`true`)):a+=e===`done`?` -in:inbox -in:trash -in:spam -in:sent`:` -in:trash -in:spam`;if(spec.mode!==`any`&&spec.start){let from=Math.floor(new Date(spec.start).getTime()/1000),end=spec.mode===`single`?new Date(spec.start).getTime()+59999:spec.end?new Date(spec.end).getTime():null;if(Number.isFinite(from))a+=` after:${from-1}`;if(end!==null&&Number.isFinite(end))a+=` before:${Math.ceil(end/1000)+1}`}if(e===`pinned`&&!i[0])return{messages:[],nextPage:null};for(let e of i)r.append(`labelIds`,e);a.trim()&&r.set(`q`,a.trim()),n&&r.set(`pageToken`,n);let o=await this.call(`/messages?${r.toString()}`),s=[];
  const entries=o.messages??[];
  const filterLoaded=messages=>{
@@ -1293,21 +1344,29 @@ function rn({message:e,onClose:t,onKeep:n,onBlock:r,onSnooze:i,onDone:a}){return
  try{
   const label=choice.createName?await backend.createLabel(choice.createName):choice;
   if(!label?.id)throw Error('A valid label is required.');
+  // Keep the chosen message, then label the sender's entire mailbox history
+  // and create an exact-address Gmail filter for future incoming messages.
   await backend.applyLabel(message.id,label.id);
   await backend.keep(message.id);
   await backend.markRead(message.id);
   await backend.markOpened(message.id);
+  const bulk=await backend.ensureSenderLabel(message.from,label.id);
   m(previous=>new Set(previous).add(message.id));
   _(previous=>new Set(previous).add(message.id));
-  s(previous=>previous.map(entry=>entry.id===message.id?
-   {...entry,unread:false,labels:[...new Set([...(entry.labels||[]).filter(id=>id!=='UNREAD'),label.id,'DELTOS_OPENED'])]}:entry));
+  s(previous=>previous.map(entry=>{
+   const sameSender=y(String(entry.from||'').trim())===bulk.sender;
+   if(entry.id===message.id)return{
+    ...entry,unread:false,labels:[...new Set([...(entry.labels||[]).filter(id=>id!=='UNREAD'),label.id,'DELTOS_OPENED'])]
+   };
+   return sameSender?{...entry,labels:[...new Set([...(entry.labels||[]),label.id])]}:entry;
+  }));
   window.DeltosLabelIntelligence?.learn(message,label.id);
   deltosLabelCache.delete(backend);
   if(request.source==='triage')de({opId:null,dir:'right',messageId:message.id,message,sender:message.from,
     originalUnread:!!message.unread,labelId:label.id,labelWasPresent:(message.labels||[]).includes(label.id),
     wasPinned:!!message.pinned,summary:'Kept in '+label.name+': '+message.subject});
   setDeltosLabelRequest(null);
-  E('Read + Keep · '+label.name+': '+message.subject);
+  E('Read + Keep · '+label.name+' · '+bulk.count+' messages from '+bulk.sender+' labeled; future mail filtered.');
   return true;
  }catch(error){E(error?.message||'Could not label message.',null,true);throw error}
  finally{T.current=false}
