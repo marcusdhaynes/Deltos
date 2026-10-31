@@ -48,7 +48,7 @@ test('Triage right-drag can release directly over a predicted bubble',async({pag
  if(!targetBox)throw Error('No prediction bubble');
  await page.mouse.move(targetBox.x+targetBox.width/2,targetBox.y+targetBox.height/2,{steps:10});
  await page.mouse.up();
- await expect(page.locator('#toast-root')).toContainText('Read + Keep');
+ await expect(page.locator('.triage-notif')).toContainText('Read + Keep');
  await expect(page.locator('.deck-card.deck-top .deck-subject')).not.toHaveText(original);
 });
 
