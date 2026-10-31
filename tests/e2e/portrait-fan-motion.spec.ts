@@ -59,7 +59,16 @@ test('On portrait Triage, the top card shrinks and gives way to all five visible
   await page.getByRole('button',{name:'Triage',exact:true}).click();
   const card=page.locator('.deck-card.deck-top');
   await expect(card).toBeVisible();
-  const {initial}=await beginDrag(page,card);
+  // In compact portrait layouts the card's center may contain a button.
+  // Begin on the subject, which is draggable content rather than a control.
+  const subject=card.locator('.deck-subject');
+  const initial=await card.boundingBox();
+  if(!initial)throw Error('Triage card not rendered');
+  const handle=await subject.boundingBox();
+  if(!handle)throw Error('Triage card subject not rendered');
+  const sx=handle.x+handle.width*.5,sy=handle.y+handle.height*.5;
+  await page.mouse.move(sx,sy);await page.mouse.down();
+  await page.mouse.move(sx+112,sy,{steps:16});
   await visibleFanFits(page,size);
   await expect(card).toHaveAttribute('data-portrait-fan-drag','true');
   await expect.poll(async()=>{
