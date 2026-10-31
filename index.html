@@ -1227,11 +1227,7 @@ function deltosSafeEmailHtml(raw,showImages){
  return '<!doctype html><html dir="'+direction+'"><head>'+
   '<meta http-equiv="Content-Security-Policy" content="'+escapeAttr(csp)+'">'+
   '<meta name="viewport" content="width=device-width, initial-scale=1">'+
-  styleHtml+'<style>'+reset+'/* Inline, persistent filter impact summaries immediately to the right of the Triage info icon. */
-.triage-filter-impact{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0}
-.triage-filter-impact span{display:inline-flex;align-items:center;background:var(--soft);border:1px solid var(--line);border-radius:999px;color:var(--muted);padding:5px 8px;font-size:11px;font-weight:650;line-height:1.2;font-variant-numeric:tabular-nums;white-space:nowrap}
-@media(max-width:600px){.triage-filter-impact{gap:4px}.triage-filter-impact span{font-size:10px;padding:4px 6px}}
-</style></head><body'+bodyExtras+'>'+
+  styleHtml+'<style>'+reset+'</style></head><body'+bodyExtras+'>'+
   parsed.innerHTML+'</body></html>';
 }
 function DeltosEmailBody({message}){
@@ -1723,6 +1719,10 @@ Me=(0,f.useCallback)(async e=>{let t=D.current.backend;if(t){w({type:`detail`,me
 .deltos-beta-popover{position:absolute;top:calc(100% + 14px);right:0;z-index:150;box-sizing:border-box;width:min(320px,calc(100vw - 28px));padding:14px 17px;border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadowbig);background:var(--paper);color:var(--ink);font-size:12px;line-height:1.55}
 .deltos-beta-popover strong{font-size:13px}
 .deltos-beta-popover p{margin:7px 0 0;color:var(--muted)}
+/* Inline, persistent filter impact summaries immediately to the right of the Triage info icon. */
+.triage-filter-impact{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0}
+.triage-filter-impact span{display:inline-flex;align-items:center;background:var(--soft);border:1px solid var(--line);border-radius:999px;color:var(--muted);padding:5px 8px;font-size:11px;font-weight:650;line-height:1.2;font-variant-numeric:tabular-nums;white-space:nowrap}
+@media(max-width:600px){.triage-filter-impact{gap:4px}.triage-filter-impact span{font-size:10px;padding:4px 6px}}
 </style>
   </head>
   <body>
