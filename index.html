@@ -37,8 +37,8 @@ Sent from the Inbox Reborn demo.`,timestamp:e-o*3600*1e3,bundle:a,unread:s,pinne
   if(!(await this.listLabels()).some(l=>l.id===labelId))throw Error('Label not found.');
   const m=this.get(id);if(!m.labels.includes(labelId))m.labels.push(labelId);
  }async removeLabel(id,labelId){const m=this.get(id);m.labels=m.labels.filter(l=>l!==labelId)}
- // Categorize every message from this exact sender, regardless of folder or read status.
- // The matching rule also labels subsequent messages arriving in demo mode.
+ // Archive and label every message from the exact sender across all folders.
+ // The matching rule also archives and labels subsequent mail in demo mode.
  async ensureSenderLabel(from,labelId){
   const sender=v(y(String(from||'')));
   if(!(await this.listLabels()).some(label=>label.id===labelId))throw Error('Label not found.');
@@ -51,6 +51,8 @@ Sent from the Inbox Reborn demo.`,timestamp:e-o*3600*1e3,bundle:a,unread:s,pinne
   for(const message of this.messages.values()){
    if(y(String(message.from||''))!==sender)continue;
    if(!message.labels.includes(labelId))message.labels.push(labelId);
+   // Archive the sender across mailbox views without changing unread/Trash/Spam flags.
+   message.labels=message.labels.filter(id=>id!=='INBOX');
    count++;
   }
   return{sender,count,filterCreated:!existing};
@@ -283,17 +285,17 @@ async function $e(){
  }
  async applyLabel(id,labelId){await this.call('/messages/'+encodeURIComponent(id)+'/modify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({addLabelIds:[labelId]})})}
  async removeLabel(id,labelId){await this.call('/messages/'+encodeURIComponent(id)+'/modify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({removeLabelIds:[labelId]})})}
- // The future rule is installed before backfilling the entire mailbox. Gmail
- // filters do not retroactively label old mail, so every search page is batched.
- // Unlike Read + Keep on the selected message, this ONLY adds the chosen label.
+ // The future archive-and-label rule is installed before backfilling the entire
+ // mailbox. Gmail filters do not retroactively change old mail, so batch every page.
+ // Do not change unread status or Spam/Trash markers on other messages.
  async ensureSenderLabel(from,labelId){
   const sender=v(y(String(from||'')));
   if(!labelId)throw Error('A Gmail label is required.');
   const existing=await this.filters();
-  const hasRule=existing.some(rule=>C(rule,sender)&&(rule.action?.addLabelIds||[]).includes(labelId));
+  const hasRule=existing.some(rule=>C(rule,sender)&&(rule.action?.addLabelIds||[]).includes(labelId)&&(rule.action?.removeLabelIds||[]).includes('INBOX'));
   if(!hasRule)await this.call('/settings/filters',{
    method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({criteria:{from:sender},action:{addLabelIds:[labelId]}})
+   body:JSON.stringify({criteria:{from:sender},action:{addLabelIds:[labelId],removeLabelIds:['INBOX']}})
   });
   let count=0,pageToken=null;
   const visitedTokens=new Set(),seenIds=new Set();
@@ -305,7 +307,7 @@ async function $e(){
     if(!id||seenIds.has(id))return false;
     seenIds.add(id);return true;
    });
-   if(ids.length)await this.batchModify(ids,[labelId],[]);
+   if(ids.length)await this.batchModify(ids,[labelId],['INBOX']);
    count+=ids.length;
    pageToken=page.nextPageToken||null;
    if(pageToken){
@@ -840,11 +842,11 @@ function DeltosKeepFan({request,backend,history,onPick,onClose}){
  };
  return N.jsxs('div',{className:'deltos-fan-layer',role:'group','aria-label':'Predictive Read and Keep labels',children:[
   N.jsxs('div',{className:'deltos-fan-stage',style:{left:position.left,top:position.top},children:[
-   N.jsx('span',{className:'deltos-fan-caption',children:'Read + Keep · choose label'}),
+   N.jsx('span',{className:'deltos-fan-caption',children:'Archive Filter · choose label'}),
    choices.map((label,index)=>N.jsx('button',{
     type:'button',className:'deltos-fan-choice',disabled:busy,
     'data-deltos-choice':label.id,'data-deltos-rank':String(index+1),
-    'aria-label':'Keep and label '+label.name,title:label.name,
+    'aria-label':'Archive sender to '+label.name,title:label.name,
     onPointerDown:ev=>ev.stopPropagation(),
     onClick:()=>void choose(label),
     children:label.name
@@ -866,7 +868,7 @@ function DeltosKeepFan({request,backend,history,onPick,onClose}){
      error?N.jsx('p',{role:'alert',className:'deltos-fan-error',children:error}):null,
      N.jsxs('div',{className:'deltos-fan-form-actions',children:[
       N.jsx('button',{type:'button',disabled:busy,onClick:()=>{setCreating(false);setError('')},children:'Cancel'}),
-      N.jsx('button',{type:'submit',disabled:busy||!name.trim(),children:busy?'Applying…':'Create & Keep'})
+      N.jsx('button',{type:'submit',disabled:busy||!name.trim(),children:busy?'Applying…':'Create & Archive'})
      ]})
     ]})
   }):null
@@ -1347,26 +1349,26 @@ function rn({message:e,onClose:t,onKeep:n,onBlock:r,onSnooze:i,onDone:a}){return
   // Keep the chosen message, then label the sender's entire mailbox history
   // and create an exact-address Gmail filter for future incoming messages.
   await backend.applyLabel(message.id,label.id);
-  await backend.keep(message.id);
   await backend.markRead(message.id);
   await backend.markOpened(message.id);
   const bulk=await backend.ensureSenderLabel(message.from,label.id);
+  recordFilterImpact('archive',bulk.count);
   m(previous=>new Set(previous).add(message.id));
   _(previous=>new Set(previous).add(message.id));
   s(previous=>previous.map(entry=>{
    const sameSender=y(String(entry.from||'').trim())===bulk.sender;
    if(entry.id===message.id)return{
-    ...entry,unread:false,labels:[...new Set([...(entry.labels||[]).filter(id=>id!=='UNREAD'),label.id,'DELTOS_OPENED'])]
+    ...entry,unread:false,labels:[...new Set([...(entry.labels||[]).filter(id=>id!=='UNREAD'&&id!=='INBOX'),label.id,'DELTOS_OPENED'])]
    };
-   return sameSender?{...entry,labels:[...new Set([...(entry.labels||[]),label.id])]}:entry;
-  }));
+   return sameSender?{...entry,labels:[...new Set([...(entry.labels||[]).filter(id=>id!=='INBOX'),label.id])]}:entry;
+  }).filter(entry=>D.current.folder!=='inbox'&&D.current.folder!=='triage'||entry.labels.includes('INBOX')));
   window.DeltosLabelIntelligence?.learn(message,label.id);
   deltosLabelCache.delete(backend);
   if(request.source==='triage')de({opId:null,dir:'right',messageId:message.id,message,sender:message.from,
     originalUnread:!!message.unread,labelId:label.id,labelWasPresent:(message.labels||[]).includes(label.id),
-    wasPinned:!!message.pinned,summary:'Kept in '+label.name+': '+message.subject});
+    wasPinned:!!message.pinned,count:bulk.count,summary:'Archived into '+label.name+': '+message.subject});
   setDeltosLabelRequest(null);
-  E('Read + Keep · '+label.name+' · '+bulk.count+' messages from '+bulk.sender+' labeled; future mail filtered.');
+  E('Archive Filter · '+label.name+' · '+bulk.count+' messages from '+bulk.sender+' archived and labeled; future mail filtered.');
   return true;
  }catch(error){E(error?.message||'Could not label message.',null,true);throw error}
  finally{T.current=false}
