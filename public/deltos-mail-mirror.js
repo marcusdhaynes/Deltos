@@ -80,6 +80,19 @@
   if(state)tx.objectStore('state').put({...state,account});
   await end;
  }
+ async function replaceSnapshot(account,messages,state){
+  // A 404 history cursor invalidates our previous knowledge of mailbox labels.
+  // Replace rows and checkpoint atomically so stale Inbox cards cannot return.
+  const db=await open(),tx=db.transaction(['messages','state'],'readwrite');
+  const end=complete(tx),store=tx.objectStore('messages');
+  const oldKeys=await request(store.index('by_account').getAllKeys(IDBKeyRange.only(account)));
+  for(const key of oldKeys)store.delete(key);
+  for(const message of messages||[]){
+   const item=slim(message);if(item)store.put({key:account+':'+item.id,account,message:item});
+  }
+  tx.objectStore('state').put({...state,account});
+  await end;
+ }
  async function clear(account){
   if(!account)return;
   const db=await open(),tx=db.transaction(['messages','state'],'readwrite'),end=complete(tx);
@@ -134,7 +147,7 @@
   const profile=await backend.call('/profile');
   const result=await remote();
   const items=(result.messages||[]).map(slim).filter(Boolean);
-  await commit(account,items,[],{
+  await replaceSnapshot(account,items,{
    historyId:String(profile.historyId||''),nextPage:result.nextPage||null,lastSync:Date.now()
   });
   return {...result,mirrorAuthoritative:true};
