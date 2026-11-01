@@ -66,9 +66,11 @@ test('On portrait Triage, the top card shrinks and gives way to all five visible
   if(!initial)throw Error('Triage card not rendered');
   const handle=await subject.boundingBox();
   if(!handle)throw Error('Triage card subject not rendered');
-  const sx=handle.x+handle.width*.5,sy=handle.y+handle.height*.5;
+  const sx=Math.min(handle.x+handle.width*.5,size.width-150),sy=handle.y+handle.height*.5;
   await page.mouse.move(sx,sy);await page.mouse.down();
-  await page.mouse.move(sx+112,sy,{steps:16});
+  // Stay inside the viewport throughout the drag. Moving a captured pointer
+  // beyond a narrow phone's right edge can cancel a native gesture on CI.
+  await page.mouse.move(sx+100,sy,{steps:18});
   await visibleFanFits(page,size);
   await expect(card).toHaveAttribute('data-portrait-fan-drag','true');
   await expect.poll(async()=>{
