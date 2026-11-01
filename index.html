@@ -2031,6 +2031,13 @@ Me=(0,f.useCallback)(async e=>{let t=D.current.backend;if(t){w({type:`detail`,me
 .sidebar-filter-label-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sidebar-collapsed .sidebar-filter-labels{display:none}
 @media(width<=790px){.sidebar-collapsed .sidebar-filter-labels{display:flex}}
+
+/* A closing portrait sidebar must immediately relinquish pointer input
+   even while its slide-out transition is still animating. */
+@media (max-width:790px){
+ .sidebar:not(.mobile-open){pointer-events:none}
+ .sidebar.mobile-open{pointer-events:auto}
+}
 </style>
   </head>
   <body>
