@@ -50,3 +50,18 @@ test('Triage opens by default and precedes Inbox in the sidebar',async({page})=>
  await page.reload();
  await expect(page.locator('.triage-deck')).toBeVisible();
 });
+
+test('programmatic focus never shows a box around Triage on load or refresh',async({page})=>{
+ await page.goto('/');
+ const deck=page.locator('.triage-deck');
+ for(let attempt=0;attempt<2;attempt++){
+  await expect(deck).toBeVisible();
+  await expect(deck).toBeFocused();
+  const style=await deck.evaluate(element=>getComputedStyle(element).outlineStyle);
+  expect(style).toBe('none');
+  if(attempt===0)await page.reload();
+ }
+ // Retaining keyboard focus must not affect the page's swipe shortcuts.
+ await page.keyboard.press('ArrowUp');
+ await expect(deck).toBeVisible();
+});

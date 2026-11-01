@@ -2038,6 +2038,11 @@ Me=(0,f.useCallback)(async e=>{let t=D.current.backend;if(t){w({type:`detail`,me
  .sidebar:not(.mobile-open){pointer-events:none}
  .sidebar.mobile-open{pointer-events:auto}
 }
+
+/* Triage receives programmatic focus for arrow-key actions. Prevent the
+   browser's automatic rectangular focus ring on this non-tab-stop wrapper;
+   real buttons and form controls retain their visible keyboard focus. */
+.triage-deck:focus,.triage-deck:focus-visible{outline:none}
 </style>
   </head>
   <body>
