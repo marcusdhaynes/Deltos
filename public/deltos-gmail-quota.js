@@ -17,6 +17,7 @@
   if(pathname.endsWith('/messages/batchModify')||pathname.endsWith('/messages/batchDelete'))return 50;
   if(pathname.endsWith('/messages/send')||pathname.endsWith('/drafts/send'))return 100;
   if(pathname.endsWith('/messages')&&method==='GET')return 5;
+  if(pathname.endsWith('/history')&&method==='GET')return 2;
   if(pathname.endsWith('/profile'))return 1;
   if(pathname.endsWith('/labels')&&method==='GET')return 1;
   if(pathname.endsWith('/settings/filters')&&method==='GET')return 1;
