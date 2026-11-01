@@ -1,6 +1,7 @@
 import {test,expect,type Page,type Locator} from '@playwright/test';
 
 async function deltosOpenInbox(page:Page){
+ await expect(page.locator('#search')).toBeVisible();
  const menu=page.locator('.mobile-menu');
  if(await menu.isVisible())await menu.click();
  await page.getByRole('button',{name:'Inbox',exact:true}).click();
