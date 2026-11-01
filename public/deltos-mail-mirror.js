@@ -203,7 +203,8 @@
     }
    }catch(error){
     // All IndexedDB failures must retain the original Gmail path.
-    if(/indexeddb|storage|transaction|database/i.test(String(error?.message||''))){
+    if(/indexeddb|storage|transaction|database|quotaexceeded|invalidstateerror|aborterror|notfounderror/i.test(
+      String(error?.name||'')+' '+String(error?.message||''))){
      console.warn('Mailbox mirror unavailable; using Gmail directly:',error?.message||error);
      return remote();
     }
@@ -211,9 +212,14 @@
    }
   });
   if(root.navigator?.locks?.request){
-   try{return await root.navigator.locks.request('deltos-mirror-sync-'+identity,synchronize)}
+   let acquired=false;
+   try{return await root.navigator.locks.request('deltos-mirror-sync-'+identity,()=>{
+    acquired=true;return synchronize();
+   })}
    catch(error){
-    console.warn('Cross-tab mailbox sync lock failed; using tab-local synchronization:',error?.message||error);
+    // A Gmail failure INSIDE the lock must never trigger a duplicate sync.
+    if(acquired)throw error;
+    console.warn('Cross-tab mailbox sync lock unavailable; using local synchronization:',error?.message||error);
    }
   }
   return synchronize();
