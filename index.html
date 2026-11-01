@@ -1657,7 +1657,8 @@ function sn(){let[e,t]=(0,f.useState)(()=>{const connected=!!(Ie()?.access_token
  let cursor=more?current.nextPage:null,total=0;
  if(more&&!cursor)return;
  const keepWarm=!more&&(folder==='inbox'||folder==='triage')&&!current.search&&
-  current.sf?.mode==='any'&&!backend.demo&&loadSequence.current===1&&deltosFastRead().length>0;
+  current.sf?.mode==='any'&&!backend.demo&&
+  (!!window.DeltosMailMirror||deltosFastRead().length>0);
  const loaded=[],ids=new Set();
  let firstFresh=true,completed=false;
  const appendMessages=additions=>{
@@ -1764,7 +1765,19 @@ function sn(){let[e,t]=(0,f.useState)(()=>{const connected=!!(Ie()?.access_token
   },1800);
  }
  return connected
-},[E,O]),k=(0,f.useCallback)(async()=>{let e=D.current.backend;if(!e)return;let t=!1;for(let n of me.current.due())try{await e.wake(n.message_id),me.current.remove(n.message_id,n.wake_at),t=!0}catch{}t&&await O()},[O]);(0,f.useEffect)(()=>{let e=!1;(async()=>{if(await xe(),e)return;let t=new URLSearchParams(window.location.search).get(`auth`);t===`connected`&&E(`Your Gmail is ready.`),t===`denied`&&E(`Google sign-in was canceled. No mail was changed.`,null,!0),t&&window.history.replaceState({},``,window.location.pathname),await O(),await k()})();let t=window.setInterval(()=>void k(),6e4);return()=>{e=!0,window.clearInterval(t)}},[]);(0,f.useEffect)(()=>{const onRenew=()=>{if(D.current.backend?.demo)void xe().then(ok=>{if(ok)void O()})};window.addEventListener('deltos-google-token-renewed',onRenew);return()=>window.removeEventListener('deltos-google-token-renewed',onRenew)},[xe,O]);let A=(0,f.useCallback)(e=>{if(e===`settings`&&D.current.backend?.demo)return;let t=D.current.folder;a(e),x(!1),(t===`inbox`||t===`triage`)&&(e===`inbox`||e===`triage`)?(d(``),D.current={...D.current,folder:e,search:``,nextPage:null}):(d(``),s([]),l(null),D.current={...D.current,folder:e,search:``,nextPage:null},e===`rules`&&oe(e=>e+1),O())},[O]),setSearchOptions=next=>{setSf(next);D.current={...D.current,sf:next,nextPage:null};window.clearTimeout(pe.current);O()},Se=(0,f.useCallback)(e=>{d(e),window.clearTimeout(pe.current),pe.current=window.setTimeout(()=>{let t=D.current,n=t.folder;(n===`rules`||n===`settings`)&&(n=`all`,a(n)),D.current={...t,folder:n,search:e},O()},300)},[O]),Ce=(0,f.useCallback)(async()=>{
+},[E,O]),k=(0,f.useCallback)(async()=>{let e=D.current.backend;if(!e)return;let t=!1;for(let n of me.current.due())try{await e.wake(n.message_id),me.current.remove(n.message_id,n.wake_at),t=!0}catch{}t&&await O()},[O]);(0,f.useEffect)(()=>{let e=!1;(async()=>{if(await xe(),e)return;let t=new URLSearchParams(window.location.search).get(`auth`);t===`connected`&&E(`Your Gmail is ready.`),t===`denied`&&E(`Google sign-in was canceled. No mail was changed.`,null,!0),t&&window.history.replaceState({},``,window.location.pathname),await O(),await k()})();let t=window.setInterval(()=>void k(),6e4);return()=>{e=!0,window.clearInterval(t)}},[]);(0,f.useEffect)(()=>{
+ // Incremental history checks cost 2 Gmail units and run only while Deltos
+ // is visible and signed in; no background loops or full mailbox polling.
+ let lastChecked=Date.now();
+ const check=()=>{
+  if(document.hidden||Date.now()-lastChecked<45000)return;
+  if(D.current.backend?.demo||!['inbox','triage'].includes(D.current.folder)||D.current.search)return;
+  lastChecked=Date.now();void O();
+ };
+ const interval=window.setInterval(check,90000);
+ document.addEventListener('visibilitychange',check);
+ return()=>{window.clearInterval(interval);document.removeEventListener('visibilitychange',check)};
+},[O]);(0,f.useEffect)(()=>{const onRenew=()=>{if(D.current.backend?.demo)void xe().then(ok=>{if(ok)void O()})};window.addEventListener('deltos-google-token-renewed',onRenew);return()=>window.removeEventListener('deltos-google-token-renewed',onRenew)},[xe,O]);let A=(0,f.useCallback)(e=>{if(e===`settings`&&D.current.backend?.demo)return;let t=D.current.folder;a(e),x(!1),(t===`inbox`||t===`triage`)&&(e===`inbox`||e===`triage`)?(d(``),D.current={...D.current,folder:e,search:``,nextPage:null}):(d(``),s([]),l(null),D.current={...D.current,folder:e,search:``,nextPage:null},e===`rules`&&oe(e=>e+1),O())},[O]),setSearchOptions=next=>{setSf(next);D.current={...D.current,sf:next,nextPage:null};window.clearTimeout(pe.current);O()},Se=(0,f.useCallback)(e=>{d(e),window.clearTimeout(pe.current),pe.current=window.setTimeout(()=>{let t=D.current,n=t.folder;(n===`rules`||n===`settings`)&&(n=`all`,a(n)),D.current={...t,folder:n,search:e},O()},300)},[O]),Ce=(0,f.useCallback)(async()=>{
  if(e?.connected&&Ie()&&Date.now()<Number(Ie().expires_at||0)&&(!deltosAuthBackend()||deltosSessionGet())){E('Your Gmail account is already connected.');return}
  if(!Fe()||window.location.hostname==='marcusdhaynes.github.io'){
   try{

@@ -175,11 +175,14 @@
   if(!identity||!root.indexedDB)return remote();
   if(cursor){
    const data=await remote();
-   try{await commit(identity,data.messages||[],[],null)}
-   catch(error){console.warn('Mailbox mirror page write skipped:',error?.message||error)}
+   try{
+    const previous=await getState(identity);
+    await commit(identity,data.messages||[],[],previous?
+     {...previous,nextPage:data.nextPage||null}:null);
+   }catch(error){console.warn('Mailbox mirror page write skipped:',error?.message||error)}
    return data;
   }
-  return withLock(identity,async()=>{
+  const synchronize=()=>withLock(identity,async()=>{
    try{
     let state=await getState(identity);
     if(!state?.historyId)return await initial(backend,identity,remote,onProgress);
@@ -207,6 +210,13 @@
     throw error;
    }
   });
+  if(root.navigator?.locks?.request){
+   try{return await root.navigator.locks.request('deltos-mirror-sync-'+identity,synchronize)}
+   catch(error){
+    console.warn('Cross-tab mailbox sync lock failed; using tab-local synchronization:',error?.message||error);
+   }
+  }
+  return synchronize();
  }
  async function appliedMutation(path,options){
   const identity=account();
