@@ -45,7 +45,7 @@ test('Triage opens by default and precedes Inbox in the sidebar',async({page})=>
  const inboxIndex=nav.findIndex(label=>label.trim().startsWith('Inbox'));
  expect(triageIndex).toBeGreaterThanOrEqual(0);
  expect(inboxIndex).toBeGreaterThan(triageIndex);
- await page.getByRole('button',{name:'Inbox',exact:true}).click();
+ await page.locator('.sidebar .nav-button').filter({hasText:/^Inbox/}).click();
  await expect(page.locator('.compact-folder-inbox')).toBeVisible();
  await page.reload();
  await expect(page.locator('.triage-deck')).toBeVisible();

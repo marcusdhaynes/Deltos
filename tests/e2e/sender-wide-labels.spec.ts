@@ -125,7 +125,7 @@ test('Gmail first installs an idempotent sender filter then labels every matchin
 
 test('Archive Filter moves both historic messages from one sender out of Inbox',async({page})=>{
  await page.goto('/');
- await page.getByRole('button',{name:'Inbox',exact:true}).click();
+ await page.locator('.sidebar .nav-button').filter({hasText:/^Inbox/}).click();
  const row=page.locator('.compact-folder-inbox .compact-message')
   .filter({hasText:'Lena Carter'}).first();
  await expect(row).toBeVisible();
@@ -174,7 +174,7 @@ test('Backfills every Gmail sender message even when future filter creation is d
 
 test('Inbox shows counts and a visible filter result; Filters shows actual destinations and matching messages',async({page})=>{
  await page.goto('/');
- await page.getByRole('button',{name:'Inbox',exact:true}).click();
+ await page.locator('.sidebar .nav-button').filter({hasText:/^Inbox/}).click();
  const header=page.locator('.compact-folder-heading');
  await expect(header.locator('[data-filter-kind="archive"]')).toContainText('Archive filtered: 0');
  await expect(header.locator('[data-filter-kind="delete"]')).toContainText('Delete filtered: 0');

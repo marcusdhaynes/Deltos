@@ -4,7 +4,7 @@ async function deltosOpenInbox(page:Page){
  await expect(page.locator('#search')).toBeVisible();
  const menu=page.locator('.mobile-menu');
  if(await menu.isVisible())await menu.click();
- await page.getByRole('button',{name:'Inbox',exact:true}).click();
+ await page.locator('.sidebar .nav-button').filter({hasText:/^Inbox/}).click();
  await expect(page.locator('.compact-folder-inbox')).toBeVisible();
 }
 

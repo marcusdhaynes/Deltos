@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 
 test('Starred is above Opened, Gmail-style stars toggle, and groups preserve source',async({page})=>{
  await page.goto('/');
- await page.getByRole('button',{name:'Inbox',exact:true}).click();
+ await page.locator('.sidebar .nav-button').filter({hasText:/^Inbox/}).click();
  await expect(page.locator('#search')).toBeVisible();
  const nav=await page.locator('.sidebar .nav-button').allTextContents();
  expect(nav.indexOf('Starred')).toBeGreaterThan(-1);
@@ -63,7 +63,7 @@ test('Triage cards have an independent star and preserve Triage provenance',asyn
 test('Inbox swipe stamps show all four directions while dragging',async({page})=>{
  for(const [direction,dx,dy] of [['left',-115,0],['right',115,0],['up',0,-115],['down',0,115]]){
   await page.goto('/');
- await page.getByRole('button',{name:'Inbox',exact:true}).click();
+ await page.locator('.sidebar .nav-button').filter({hasText:/^Inbox/}).click();
   await expect(page.locator('.compact-folder-inbox .compact-message').first()).toBeVisible();
   const row=page.locator('.compact-folder-inbox .compact-message').first();
   const box=await row.boundingBox();
@@ -96,7 +96,7 @@ test('Inbox swipe stamps show all four directions while dragging',async({page})=
 
 test('Inbox can use keyboard arrows for all directions while the row has focus',async({page})=>{
  await page.goto('/');
- await page.getByRole('button',{name:'Inbox',exact:true}).click();
+ await page.locator('.sidebar .nav-button').filter({hasText:/^Inbox/}).click();
  const row=page.locator('.compact-folder-inbox .compact-message').first();
  await row.focus();
  await page.keyboard.press('ArrowLeft');
