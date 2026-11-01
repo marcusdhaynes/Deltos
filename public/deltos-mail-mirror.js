@@ -237,6 +237,41 @@
   }
   return synchronize();
  }
+ async function remember(messages){
+  const identity=account();
+  if(!identity||!root.indexedDB||!messages?.length)return;
+  try{await commit(identity,messages,[],null)}
+  catch(error){console.warn('Deferred saved-mail preview:',error?.message||error)}
+ }
+ async function preview(folder,query='',options={},limit=100){
+  const identity=account();
+  if(!identity||!root.indexedDB)return [];
+  const rows=await getRows(identity),terms=String(query||'').trim().toLowerCase();
+  const filtered=sortRows(rows).filter(m=>{
+   const labels=m.labels||[];
+   if(folder==='inbox'||folder==='triage'){if(!labels.includes('INBOX'))return false}
+   else if(folder==='done'){if(labels.some(x=>['INBOX','TRASH','SPAM','SENT'].includes(x)))return false}
+   else if(folder==='starred'){if(!labels.includes('STARRED'))return false}
+   else if(folder==='trash'){if(!labels.includes('TRASH'))return false}
+   else if(folder==='pinned'){if(!labels.includes('DELTOS_OPENED'))return false}
+   else if(folder.startsWith('label:')){if(!labels.includes(folder.slice(6))||labels.some(x=>['INBOX','TRASH','SPAM'].includes(x)))return false}
+   else return false;
+   if(terms){
+    const field=options.field||'all',hay=field==='sender'?m.from+' '+m.sender:
+     field==='subject'?m.subject:field==='body'?m.snippet:
+     m.from+' '+m.sender+' '+m.subject+' '+m.snippet;
+    if(!hay.toLowerCase().includes(terms))return false;
+   }
+   if(options.mode!=='any'&&options.start){
+    const stamp=Number(m.timestamp||0);
+    const start=Date.parse(options.start);
+    const stop=options.mode==='single'?start+59999:options.end?Date.parse(options.end):Infinity;
+    if(!(stamp>=start&&stamp<=stop))return false;
+   }
+   return true;
+  });
+  return filtered.slice(0,Math.max(1,Math.min(1000,limit)));
+ }
  async function appliedMutation(path,options){
   const identity=account();
   if(!identity||!root.indexedDB)return;
@@ -263,5 +298,5 @@
    await commit(identity,changed,[],{...state,lastSync:0});
   }catch(error){console.warn('Mailbox mirror mutation update deferred:',error?.message||error)}
  }
- root.DeltosMailMirror={account,list,inbox,get,getState,appliedMutation,clear};
+ root.DeltosMailMirror={account,list,inbox,get,getState,preview,remember,appliedMutation,clear};
 })(window);

@@ -1676,7 +1676,16 @@ function sn(){let[e,t]=(0,f.useState)(()=>{const connected=!!(Ie()?.access_token
  };
  te(true);
  if(!more){l(null);if(!keepWarm)s([])}
+ let cachedPreview=false;
  try{
+  if(!more&&!backend.demo&&!['triage','inbox'].includes(folder)&&window.DeltosMailMirror){
+   const cached=await window.DeltosMailMirror.preview(folder,current.search,current.sf,target);
+   if(isCurrent()&&cached.length){cachedPreview=true;s(cached)}
+   if(!navigator.onLine&&isCurrent()){
+    E('Offline: showing previously synchronized messages. Changes require a Gmail connection.');
+    return;
+   }
+  }
   do{
    if(!isCurrent())return;
    const needed=loadAll?100:Math.min(100,target-total);
@@ -1697,6 +1706,10 @@ function sn(){let[e,t]=(0,f.useState)(()=>{const connected=!!(Ie()?.access_token
    if(!isCurrent())return;
    // Demo and other backends can return their results without progress events.
    appendMessages(result.messages.slice(alreadyShown));
+   if(cachedPreview&&!more&&isCurrent()){
+    // Replace partial local previews with Gmail's authoritative result.
+    s([...loaded]);cachedPreview=false;
+   }
    total+=result.messages.length;
    cursor=result.nextPage||null;
    D.current.nextPage=cursor;
@@ -1714,6 +1727,8 @@ function sn(){let[e,t]=(0,f.useState)(()=>{const connected=!!(Ie()?.access_token
  }finally{
   if(isCurrent()){
    te(false);
+   if(completed&&!backend.demo&&window.DeltosMailMirror)
+    void window.DeltosMailMirror.remember(loaded);
    if(completed&&!more&&(folder==='inbox'||folder==='triage')&&!current.search&&current.sf?.mode==='any'&&!backend.demo)
     deltosFastSave(loaded);
   }
