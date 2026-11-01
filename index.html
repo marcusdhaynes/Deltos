@@ -565,7 +565,7 @@ async removeRule(filterId){
   return {demo:false};
  }async reply(e,t){let n=await this.details(e),r=n.from,i=n.subject;/^re:/i.test(i)||(i=`Re: ${i}`);let a=[`To: ${r}`,`Subject: ${i}`,`In-Reply-To: ${n.id}`,`References: ${n.id}`,`Content-Type: text/plain; charset=utf-8`,``,t].join(`\r
 `),o=btoa(String.fromCharCode(...new TextEncoder().encode(a))).replace(/\+/g,`-`).replace(/\//g,`_`).replace(/=+$/,``);await this.call(`/messages/send`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({raw:o,threadId:n.threadId})})}async saveDraft(e,t,n,c=``,b=``){let r=[`To: ${e.replace(/[\r\n]/g,`, `)}`,...(c.trim()?[`Cc: ${c.replace(/[\r\n]/g,`, `)}`]:[]),...(b.trim()?[`Bcc: ${b.replace(/[\r\n]/g,`, `)}`]:[]),`Subject: ${t.replace(/[\r\n]/g,` `)}`,`Content-Type: text/plain; charset=utf-8`,``,n].join(`\r
-`),i=btoa(String.fromCharCode(...new TextEncoder().encode(r))).replace(/\+/g,`-`).replace(/\//g,`_`).replace(/=+$/,``);await this.call(`/drafts/create`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({message:{raw:i}})})}disconnect(){const base=deltosAuthBackend(),session=deltosSessionGet();deltosSessionSet('');Re();deltosForgetAccount();deltosFastClear();if(base&&session)void fetch(base+'/session',{method:'DELETE',headers:{Authorization:'Bearer '+session}}).catch(()=>{})}},dt=`inbox-scheduled-sends`;function ft(){try{let e=localStorage.getItem(dt);if(!e)return[];let t=JSON.parse(e);return Array.isArray(t)?t:[]}catch{return[]}}function pt(e){try{localStorage.setItem(dt,JSON.stringify(e))}catch{}}function mt(e){let t={...e,id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,created:Date.now()};return pt([...ft(),t]),t}function ht(e){pt(ft().filter(t=>t.id!==e))}function gt(e=Date.now()){return ft().filter(t=>t.sendAt<=e)}
+`),i=btoa(String.fromCharCode(...new TextEncoder().encode(r))).replace(/\+/g,`-`).replace(/\//g,`_`).replace(/=+$/,``);await this.call(`/drafts/create`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({message:{raw:i}})})}disconnect(){const base=deltosAuthBackend(),session=deltosSessionGet();const previous=deltosAccountHint();deltosSessionSet('');Re();deltosForgetAccount();deltosFastClear();void window.DeltosMailMirror?.clear(previous).catch(()=>{});if(base&&session)void fetch(base+'/session',{method:'DELETE',headers:{Authorization:'Bearer '+session}}).catch(()=>{})}},dt=`inbox-scheduled-sends`;function ft(){try{let e=localStorage.getItem(dt);if(!e)return[];let t=JSON.parse(e);return Array.isArray(t)?t:[]}catch{return[]}}function pt(e){try{localStorage.setItem(dt,JSON.stringify(e))}catch{}}function mt(e){let t={...e,id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,created:Date.now()};return pt([...ft(),t]),t}function ht(e){pt(ft().filter(t=>t.id!==e))}function gt(e=Date.now()){return ft().filter(t=>t.sendAt<=e)}
 /* Drafts are stored in Gmail when connected and in local sample storage in demo mode. */
 const deltosDraftSampleKey='deltos-demo-drafts';
 function deltosDraftRaw(to,subject,body,cc='',bcc=''){
@@ -1686,6 +1686,13 @@ function sn(){let[e,t]=(0,f.useState)(()=>{const connected=!!(Ie()?.access_token
      alreadyShown=batch.length;
      appendMessages(unseen);
     },needed);
+   if(result.mirrorAuthoritative&&isCurrent()&&!more){
+    // History may remove an Inbox label or change UNREAD/STARRED.
+    // Replace the cached view atomically so archived cards cannot linger.
+    s(result.messages);loaded.splice(0,loaded.length,...result.messages);
+    ids.clear();for(const item of result.messages)ids.add(item.id);
+    alreadyShown=result.messages.length;
+   }
    if(!isCurrent())return;
    // Demo and other backends can return their results without progress events.
    appendMessages(result.messages.slice(alreadyShown));
