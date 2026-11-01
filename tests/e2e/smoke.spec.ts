@@ -65,3 +65,33 @@ test('programmatic focus never shows a box around Triage on load or refresh',asy
  await page.keyboard.press('ArrowUp');
  await expect(deck).toBeVisible();
 });
+
+test('expired Gmail token does not open a disconnect prompt on refresh',async({page})=>{
+ const dialogs=[];
+ page.on('dialog',async dialog=>{dialogs.push(dialog.message());await dialog.dismiss()});
+ await page.addInitScript(()=>{
+  localStorage.setItem('inbox-gmail-token',JSON.stringify({access_token:'expired-token',expires_at:Date.now()-60000}));
+  localStorage.setItem('deltos-last-google-account','expired@example.test');
+ });
+ await page.goto('/');
+ await expect(page.locator('.triage-deck')).toBeVisible();
+ await page.reload();
+ await expect(page.locator('.triage-deck')).toBeVisible();
+ expect(dialogs).toEqual([]);
+ await expect(page.getByText('Bringing back a little inbox magic…')).toHaveCount(0);
+});
+test('Triage renders before a slow Gmail profile response',async({page})=>{
+ await page.addInitScript(()=>{
+  localStorage.setItem('inbox-gmail-token',JSON.stringify({access_token:'test-token',expires_at:Date.now()+3600000}));
+  localStorage.setItem('deltos-last-google-account','slow@example.test');
+ });
+ await page.route('https://gmail.googleapis.com/**',async route=>{
+  await new Promise(resolve=>setTimeout(resolve,3000));
+  if(route.request().url().includes('/profile'))return route.fulfill({json:{emailAddress:'slow@example.test'}});
+  return route.fulfill({json:{messages:[]}});
+ });
+ await page.goto('/');
+ await expect(page.locator('.triage-deck')).toBeVisible({timeout:2000});
+ await expect(page.locator('.sidebar')).toBeVisible({timeout:2000});
+ await expect(page.getByText('Bringing back a little inbox magic…')).toHaveCount(0);
+});
