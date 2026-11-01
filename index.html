@@ -1607,7 +1607,7 @@ function sn(){let[e,t]=(0,f.useState)(()=>{const connected=!!(Ie()?.access_token
  let cursor=more?current.nextPage:null,total=0;
  if(more&&!cursor)return;
  const keepWarm=!more&&(folder==='inbox'||folder==='triage')&&!current.search&&
-  current.sf.mode==='any'&&!backend.demo&&loadSequence.current===1&&deltosFastRead().length>0;
+  current.sf?.mode==='any'&&!backend.demo&&loadSequence.current===1&&deltosFastRead().length>0;
  const loaded=[],ids=new Set();
  let firstFresh=true,completed=false;
  const appendMessages=additions=>{
@@ -1653,7 +1653,7 @@ function sn(){let[e,t]=(0,f.useState)(()=>{const connected=!!(Ie()?.access_token
  }finally{
   if(isCurrent()){
    te(false);
-   if(completed&&!more&&(folder==='inbox'||folder==='triage')&&!current.search&&current.sf.mode==='any'&&!backend.demo)
+   if(completed&&!more&&(folder==='inbox'||folder==='triage')&&!current.search&&current.sf?.mode==='any'&&!backend.demo)
     deltosFastSave(loaded);
   }
  }
@@ -1668,7 +1668,7 @@ function sn(){let[e,t]=(0,f.useState)(()=>{const connected=!!(Ie()?.access_token
  const account=connected?deltosAccountHint():null;
  const backend=connected?new ut:new g;
  const was=D.current.backend;
- D.current={backend,folder:D.current.folder,search:'',nextPage:null};
+ D.current={...D.current,backend,folder:D.current.folder,search:'',nextPage:null};
  r(backend);
  t({connected,demo:!connected,hasClient,account,photoUrl:null});
  if(!connected||was?.demo!==backend.demo){s([]);deltosFastClear()}
