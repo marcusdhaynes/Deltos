@@ -1,5 +1,12 @@
 import {test,expect,type Page,type Locator} from '@playwright/test';
 
+async function deltosOpenInbox(page:Page){
+ const menu=page.locator('.mobile-menu');
+ if(await menu.isVisible())await menu.click();
+ await page.getByRole('button',{name:'Inbox',exact:true}).click();
+ await expect(page.locator('.compact-folder-inbox')).toBeVisible();
+}
+
 async function beginDrag(page:Page,card:Locator,distance=112){
  const box=await card.boundingBox();
  if(!box)throw Error('Mail card not on screen');
@@ -33,6 +40,7 @@ test('Phone and portrait layouts shrink the Inbox mail and keep all five options
  ]){
   await page.setViewportSize(size);
   await page.goto('/');
+ await deltosOpenInbox(page);
   const row=page.locator('.compact-folder-inbox .compact-message').first();
   await expect(row).toBeVisible();
   const {initial}=await beginDrag(page,row);
@@ -99,6 +107,7 @@ test('Moving to a label progressively highlights it, shrinks the card and drops 
  const size={width:390,height:844};
  await page.setViewportSize(size);
  await page.goto('/');
+ await deltosOpenInbox(page);
  const card=page.locator('.compact-folder-inbox .compact-message').first();
  const {initial,sx,sy}=await beginDrag(page,card,92);
  await visibleFanFits(page,size);
@@ -137,6 +146,7 @@ test.describe('Real touch pointer on a small portrait phone',()=>{
  test.use({viewport:{width:360,height:740},hasTouch:true,isMobile:true});
  test('Finger drag reveals the bubbles and selects the highlighted label on touch release',async({page})=>{
   await page.goto('/');
+ await deltosOpenInbox(page);
   const row=page.locator('.compact-folder-inbox .compact-message').first();
   await expect(row).toBeVisible();
   const box=await row.boundingBox();

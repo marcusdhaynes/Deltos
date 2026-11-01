@@ -35,3 +35,16 @@ test('demo navigation does not lose keyboard focus or throw',async({page})=>{
   await expect(page.locator('.triage-deck')).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+
+test('Triage opens by default and precedes Inbox in the sidebar',async({page})=>{
+ await page.goto('/');
+ await expect(page.locator('.triage-deck')).toBeVisible();
+ const nav=await page.locator('.sidebar .nav-button').allTextContents();
+ expect(nav.indexOf('Triage')).toBeGreaterThanOrEqual(0);
+ expect(nav.indexOf('Triage')).toBeLessThan(nav.indexOf('Inbox'));
+ await page.getByRole('button',{name:'Inbox',exact:true}).click();
+ await expect(page.locator('.compact-folder-inbox')).toBeVisible();
+ await page.reload();
+ await expect(page.locator('.triage-deck')).toBeVisible();
+});

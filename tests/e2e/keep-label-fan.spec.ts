@@ -1,5 +1,12 @@
 import {test,expect,type Page,type Locator} from '@playwright/test';
 
+async function deltosOpenInbox(page:Page){
+ const menu=page.locator('.mobile-menu');
+ if(await menu.isVisible())await menu.click();
+ await page.getByRole('button',{name:'Inbox',exact:true}).click();
+ await expect(page.locator('.compact-folder-inbox')).toBeVisible();
+}
+
 async function beginRightSwipe(page:Page,row:Locator){
  const box=await row.boundingBox();
  if(!box)throw Error('Swipe target not rendered');
@@ -20,6 +27,7 @@ async function releaseOn(page:Page,target:Locator){
 
 test('Only an active rightward drag opens the label fan, and release closes it',async({page})=>{
  await page.goto('/');
+ await deltosOpenInbox(page);
  const row=page.locator('.compact-folder-inbox .compact-message').first();
  await expect(row).toBeVisible();
  const id=await row.getAttribute('data-id');
@@ -39,6 +47,7 @@ test('Only an active rightward drag opens the label fan, and release closes it',
 
 test('New label bubble creates and applies a Gmail label in the demo',async({page})=>{
  await page.goto('/');
+ await deltosOpenInbox(page);
  const row=page.locator('.compact-folder-inbox .compact-message').first();
  await beginRightSwipe(page,row);
  await releaseOn(page,page.getByRole('button',{name:'Create a new label'}));
@@ -74,6 +83,7 @@ test('Triage right-drag can release directly over a predicted bubble',async({pag
 
 test('The four prediction bubbles appear in the requested 3 / 1 / + / 2 / 4 arc',async({page})=>{
  await page.goto('/');
+ await deltosOpenInbox(page);
  const row=page.locator('.compact-folder-inbox .compact-message').first();
  await beginRightSwipe(page,row);
  const xy=async selector=>{
@@ -99,6 +109,7 @@ test('The wider fan forms a rounded arc with separated circular targets on deskt
  for(const size of [{width:1280,height:800},{width:390,height:844},{width:900,height:580},{width:375,height:600}]){
   await page.setViewportSize(size);
   await page.goto('/');
+ await deltosOpenInbox(page);
   const row=page.locator('.compact-folder-inbox .compact-message').first();
   await expect(row).toBeVisible();
   await beginRightSwipe(page,row);
@@ -156,6 +167,7 @@ test('The wider fan forms a rounded arc with separated circular targets on deskt
 
 test('Four predictive bubbles remain visible when the Gmail account has no user labels',async({page})=>{
  await page.goto('/');
+ await deltosOpenInbox(page);
  await page.evaluate(()=>{
   const engine=(window as any).DeltosLabelIntelligence;
   const realSuggest=engine.suggest;
@@ -196,6 +208,7 @@ test('Prediction engine infers Storage and Bills from mail even without preexist
 
 test('The fan never appears on a left/up drag and closes on a decisive reversal',async({page})=>{
  await page.goto('/');
+ await deltosOpenInbox(page);
  const row=page.locator('.compact-folder-inbox .compact-message').first();
  const box=await row.boundingBox();
  if(!box)throw Error('No inbox row');
@@ -235,6 +248,7 @@ test('Triage fan is visible only while a card is actively swiped right',async({p
 
 test('Inbox right-swipe fan disappears immediately at center and when turned vertically',async({page})=>{
  await page.goto('/');
+ await deltosOpenInbox(page);
  const row=page.locator('.compact-folder-inbox .compact-message').first();
  const {sx,sy}=await beginRightSwipe(page,row);
  const fan=page.getByRole('group',{name:'Predictive Read and Keep labels'});
@@ -274,6 +288,7 @@ test('Triage right-swipe fan disappears at center and when direction changes',as
 test('Each of all five archive filter bubbles can be highlighted and chosen by dragging and releasing in Inbox',async({page})=>{
  for(const rank of ['1','2','3','4','new']){
   await page.goto('/');
+ await deltosOpenInbox(page);
   const row=page.locator('.compact-folder-inbox .compact-message').first();
   await beginRightSwipe(page,row);
   const target=rank==='new'?page.locator('.deltos-fan-add'):page.locator('[data-deltos-rank="'+rank+'"]');

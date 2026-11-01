@@ -37,6 +37,7 @@ test('HTML-only Gmail messages render as formatted content, not source code',asy
     return route.fulfill({json:{}});
   });
   await page.goto('/');
+  await page.getByRole('button',{name:'Inbox',exact:true}).click();
   const card=page.locator('.compact-message').filter({hasText:'HTML rendering test'}).first();
   await expect(card).toBeVisible({timeout:20000});
   await card.click();
