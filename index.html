@@ -351,6 +351,7 @@ var ut=class{demo=!1;journal=new at;async call(path,options){
  if(!budget)return send();
  if(method==='GET')return budget.readRequest(path,send);
  budget.changed(path,options);
+ if(/\/messages(?:\/|$)/.test(path))deltosFastClear();
  return budget.run(budget.estimate(path,method),send,10);
 }async details(e,t=!1){let n=t?`format=full`:`format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=To`,r=await this.call(`/messages/${encodeURIComponent(e)}?${n}`),i=ct(r);if(t){let e=st(r),content=deltosReadMime(r.payload??{});i.body=content.text,i.html=content.html,i.to=e.to??``,i.date=e.date??``}return i}async filters(){return(await this.call(`/settings/filters`)).filter??[]}
  async listLabels(){return (await this.call('/labels')).labels?.filter(l=>l.type==='user'||String(l.id).startsWith('Label_')).map(l=>({id:l.id,name:l.name}))||[]}
@@ -431,6 +432,11 @@ var ut=class{demo=!1;journal=new at;async call(path,options){
   });
  }async profileEmail(){return(await this.call(`/profile`)).emailAddress??``}async list(e,t,n,onProgress,pageSize=50){let spec=deltosSpec(t),r=new URLSearchParams({maxResults:String(Math.max(1,Math.min(100,Number(pageSize)||50)))}),i=[],a=spec.text.trim();if(a&&spec.field===`sender`)a=`from:${a}`;else if(a&&spec.field===`subject`)a=`subject:${a}`;e===`inbox`||e===`triage`?i.push(`INBOX`):e===`pinned`?i.push(await this.openedLabel(false)):e===`starred`?(i.push(`STARRED`),r.set(`includeSpamTrash`,`true`)):e===`trash`?(i.push(`TRASH`),r.set(`includeSpamTrash`,`true`)):e.startsWith('label:')?(i.push(e.slice(6)),a+=' -in:inbox -in:trash -in:spam'):a+=e===`done`?` -in:inbox -in:trash -in:spam -in:sent`:` -in:trash -in:spam`;if(spec.mode!==`any`&&spec.start){let from=Math.floor(new Date(spec.start).getTime()/1000),end=spec.mode===`single`?new Date(spec.start).getTime()+59999:spec.end?new Date(spec.end).getTime():null;if(Number.isFinite(from))a+=` after:${from-1}`;if(end!==null&&Number.isFinite(end))a+=` before:${Math.ceil(end/1000)+1}`}if(e===`pinned`&&!i[0])return{messages:[],nextPage:null};for(let e of i)r.append(`labelIds`,e);a.trim()&&r.set(`q`,a.trim()),n&&r.set(`pageToken`,n);let o=await this.call(`/messages?${r.toString()}`),s=[];
  const entries=o.messages??[];
+ // Gmail's list response confirms which message IDs still belong to this
+ // folder; reuse recent, account-bound previews instead of re-downloading
+ // the same unchanged metadata after every page reload.
+ const warm=(e==='inbox'||e==='triage')&&!n&&!spec.text.trim()&&spec.mode==='any'
+  ?new Map(deltosFastRead(30000).map(item=>[item.id,item])):new Map();
  const filterLoaded=messages=>{
   let result=messages;
   if(spec.mode!==`any`)result=result.filter(m=>deltosDateOK(m,spec));
@@ -443,7 +449,7 @@ var ut=class{demo=!1;journal=new at;async call(path,options){
   const group=entries.slice(start,start+(start===0?5:12));
   start+=group.length;
   const batch=await Promise.all(group.map(async item=>{
-   try{return await this.details(item.id)}
+   try{return warm.get(item.id)||await this.details(item.id)}
    catch(error){if(error instanceof Error&&/404|not found/i.test(error.message))return null;throw error}
   }));
   s.push(...batch.filter(Boolean));
@@ -1584,13 +1590,13 @@ function deltosFastEligible(){
  return !!(token?.access_token&&Number(token.expires_at)>Date.now())||
   !!(deltosAuthBackend()&&deltosSessionGet());
 }
-function deltosFastRead(){
+function deltosFastRead(maxAge=600000){
  try{
   if(!deltosFastEligible())return [];
   const account=deltosAccountHint().trim().toLowerCase();
   if(!account)return [];
   const snapshot=JSON.parse(sessionStorage.getItem(deltosFastSnapshotKey)||'null');
-  if(!snapshot||snapshot.account!==account||Date.now()-snapshot.savedAt>600000||!Array.isArray(snapshot.items))return [];
+  if(!snapshot||snapshot.account!==account||Date.now()-snapshot.savedAt>maxAge||!Array.isArray(snapshot.items))return [];
   return snapshot.items.filter(item=>item&&typeof item.id==='string'&&Array.isArray(item.labels)).slice(0,25);
  }catch{return []}
 }

@@ -159,3 +159,18 @@ test('Gmail quota error activates a shared cooldown instead of retry storms',asy
  const status=await page.evaluate(()=>window.DeltosGmailQuota.status());
  expect(status.pausedUntil).toBeGreaterThan(Date.now()+20000);
 });
+
+test('one Gmail mutation invalidates changed headers but not unrelated cached headers',async({page})=>{
+ await page.goto('/');
+ const result=await page.evaluate(async()=>{
+  const q=window.DeltosGmailQuota;
+  let unchanged=0,updated=0;
+  const a=()=>q.readRequest('/messages/unchanged-1?format=metadata',async()=>{unchanged++;return{id:'unchanged-1'}});
+  const b=()=>q.readRequest('/messages/updated-1?format=metadata',async()=>{updated++;return{id:'updated-1'}});
+  await Promise.all([a(),b()]);
+  q.changed('/messages/updated-1/modify',{method:'POST'});
+  await Promise.all([a(),b()]);
+  return{unchanged,updated};
+ });
+ expect(result).toEqual({unchanged:1,updated:2});
+});
