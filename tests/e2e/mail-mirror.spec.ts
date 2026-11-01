@@ -78,18 +78,25 @@ test('expired history cursors recover with a fresh bounded snapshot',async({page
    },
    details:async()=>{throw Error('History invalidation must not fetch headers')},
   };
-  const remote=async()=>{remoteCalls++;return{messages:[{
-   id:'one',threadId:'one',from:'x@example.test',sender:'X',subject:'Snapshot',
-   snippet:'Cached',timestamp:100,labels:['INBOX']
-  }],nextPage:'more'}};
+  const remote=async()=>{
+   remoteCalls++;
+   const messages=[{id:'one',threadId:'one',from:'x@example.test',sender:'X',subject:'Snapshot',
+    snippet:'Cached',timestamp:100,labels:['INBOX']}];
+   if(remoteCalls===1)messages.push({id:'stale-old',threadId:'stale-old',
+    from:'old@example.test',sender:'Old',subject:'No longer in Inbox',
+    snippet:'Old cache',timestamp:98,labels:['INBOX']});
+   return{messages,nextPage:'more'};
+  };
   await mirror.list(backend,{folder:'inbox',spec:{mode:'any',text:''},
    cursor:null,pageSize:50,remote});
   const renewed=await mirror.list(backend,{folder:'inbox',spec:{mode:'any',text:''},
    cursor:null,pageSize:50,force:true,remote});
   const state=await mirror.getState('mirror-b@example.test');
-  return{calls:remoteCalls,cursor:state.historyId,ids:renewed.messages.map((x:any)=>x.id)};
+  const stale=await mirror.get('mirror-b@example.test','stale-old');
+  return{calls:remoteCalls,cursor:state.historyId,ids:renewed.messages.map((x:any)=>x.id),
+   staleRemoved:stale===null};
  });
- expect(result).toEqual({calls:2,cursor:'200',ids:['one']});
+ expect(result).toEqual({calls:2,cursor:'200',ids:['one'],staleRemoved:true});
 });
 test('account isolation and local Gmail mutations do not cross mailboxes',async({page})=>{
  await page.goto('/');
