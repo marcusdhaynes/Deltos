@@ -144,3 +144,50 @@ test('a transient history failure shows cached mail without advancing the cursor
  });
  expect(result).toEqual({stale:true,ids:['offline-mail'],cursor:'300',remoteCalls:1});
 });
+
+test('saved folders and cached search are isolated and filter by Gmail labels',async({page})=>{
+ await page.goto('/');
+ const result=await page.evaluate(async()=>{
+  const mirror=(window as any).DeltosMailMirror,identity='preview@example.test';
+  localStorage.setItem('deltos-last-google-account',identity);
+  await mirror.clear(identity);
+  await mirror.remember([
+   {id:'archived',threadId:'archived',from:'receipt@example.test',sender:'Receipts',
+    subject:'Electric receipt',snippet:'Paid',timestamp:300,labels:['Label_ELECTRIC']},
+   {id:'starred',threadId:'starred',from:'finance@example.test',sender:'Finance',
+    subject:'Budget',snippet:'Spreadsheet',timestamp:200,labels:['INBOX','STARRED']},
+   {id:'deleted',threadId:'deleted',from:'spam@example.test',sender:'Spam',
+    subject:'Deleted',snippet:'Deleted',timestamp:100,labels:['TRASH']}
+  ]);
+  const ids=async(folder:string,query='')=>(await mirror.preview(folder,query,{mode:'any',field:'all'},25))
+   .map((m:any)=>m.id);
+  return{archived:await ids('done'),label:await ids('label:Label_ELECTRIC'),
+   search:await ids('label:Label_ELECTRIC','electric'),
+   nonmatching:await ids('label:Label_ELECTRIC','nonexistent'),
+   starred:await ids('starred'),trash:await ids('trash')};
+ });
+ expect(result).toEqual({archived:['archived'],label:['archived'],search:['archived'],
+  nonmatching:[],starred:['starred'],trash:['deleted']});
+});
+test('paging a mirrored mailbox persists the next Gmail cursor',async({page})=>{
+ await page.goto('/');
+ const result=await page.evaluate(async()=>{
+  const m=(window as any).DeltosMailMirror,account='pages@example.test';
+  localStorage.setItem('deltos-last-google-account',account);
+  await m.clear(account);
+  const message=(id:string,timestamp:number)=>({id,threadId:id,from:'x@example.test',
+   sender:'X',subject:id,snippet:'',timestamp,labels:['INBOX']});
+  await m.list({call:async()=>({historyId:'900'})},{
+   folder:'inbox',spec:{mode:'any',text:''},cursor:null,pageSize:50,
+   remote:async()=>({messages:[message('first',200)],nextPage:'next-2'})
+  });
+  await m.list({},{
+   folder:'inbox',spec:{mode:'any',text:''},cursor:'next-2',pageSize:50,
+   remote:async()=>({messages:[message('second',100)],nextPage:'next-3'})
+  });
+  const state=await m.getState(account);
+  const messages=await m.inbox(account,100);
+  return{cursor:state.nextPage,ids:messages.map((x:any)=>x.id)};
+ });
+ expect(result).toEqual({cursor:'next-3',ids:['first','second']});
+});
