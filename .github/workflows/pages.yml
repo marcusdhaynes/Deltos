@@ -31,8 +31,10 @@ jobs:
           DELTOS_AUTH_BACKEND_URL: ${{ vars.DELTOS_AUTH_BACKEND_URL }}
       - name: Install Chromium for release gate
         run: npx playwright install --with-deps chromium
-      - name: Gate release on browser regressions
-        run: npm run test:e2e
+      # A fast landing-page smoke gate protects the published app.
+      # The complete E2E suite still runs in browser-tests.yml on every source push.
+      - name: Gate release on navigation and startup smoke tests
+        run: npx playwright test tests/e2e/smoke.spec.ts
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
