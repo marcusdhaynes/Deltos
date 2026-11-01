@@ -402,6 +402,7 @@ var ut=class{demo=!1;journal=new at;async call(path,options){
   // run concurrently afterward, with three controlled Gmail batch workers.
   let pageToken=null;
   const visitedTokens=new Set(),seenIds=new Set(),batches=[];
+  let pendingBatch=[];
   do{
    const params=new URLSearchParams({q:'from:'+sender,maxResults:'500',includeSpamTrash:'true'});
    if(pageToken)params.set('pageToken',pageToken);
@@ -410,13 +411,15 @@ var ut=class{demo=!1;journal=new at;async call(path,options){
     if(!id||seenIds.has(id))return false;
     seenIds.add(id);return true;
    });
-   if(ids.length)batches.push(ids);
+   pendingBatch.push(...ids);
+   while(pendingBatch.length>=1000)batches.push(pendingBatch.splice(0,1000));
    pageToken=page.nextPageToken||null;
    if(pageToken){
     if(visitedTokens.has(pageToken))throw Error('Gmail repeated its page token; no messages were changed.');
     visitedTokens.add(pageToken);
    }
   }while(pageToken);
+  if(pendingBatch.length)batches.push(pendingBatch);
   let count=0;
   await deltosGmailParallel(batches,3,async ids=>{
    await this.batchModify(ids,[labelId],['INBOX']);
@@ -427,7 +430,7 @@ var ut=class{demo=!1;journal=new at;async call(path,options){
  }
 
  async batchModify(ids,add=[],remove=[]){
-  const chunks=[];for(let i=0;i<ids.length;i+=500)chunks.push(ids.slice(i,i+500));
+  const chunks=[];for(let i=0;i<ids.length;i+=1000)chunks.push(ids.slice(i,i+1000));
   await deltosGmailParallel(chunks,3,async batch=>{
    await deltosGmailRetry(()=>this.call('/messages/batchModify',{
     method:'POST',headers:{'Content-Type':'application/json'},
@@ -503,7 +506,7 @@ async listDirect(e,t,n,onProgress,pageSize=50){let spec=deltosSpec(t),r=new URLS
  }catch(error){futureError=String(error?.message||'Gmail rejected the future filter.');console.warn('Future delete filter could not be installed:',futureError)}
  this.journal.record({id:t,email:i,filter_id:n,owned:r,status:'running',created:new Date().toISOString(),count:0,messages:[]});
  const matches=await this.exactSenderMessages(i);
- const chunks=[];for(let index=0;index<matches.length;index+=500)chunks.push(matches.slice(index,index+500));
+ const chunks=[];for(let index=0;index<matches.length;index+=1000)chunks.push(matches.slice(index,index+1000));
  let completed=0;
  await deltosGmailParallel(chunks,3,async batch=>{
   await this.batchModify(batch.map(([id])=>id),['TRASH'],['INBOX']);

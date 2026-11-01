@@ -238,7 +238,7 @@ test('Delete filtering fetches sender metadata with twelve parallel workers and 
 });
 
 test('Gmail batch modification runs at most three requests at a time and retries transient errors',async()=>{
- const ids=Array.from({length:1750},(_,i)=>'msg-'+i);
+ const ids=Array.from({length:3500},(_,i)=>'msg-'+i);
  let active=0,peak=0,failFirst=true;
  const changed:string[]=[];
  const backend={
@@ -256,8 +256,8 @@ test('Gmail batch modification runs at most three requests at a time and retries
  };
  await concurrentBatchModify.call(backend,ids,['Label_X'],['INBOX']);
  expect(peak).toBe(3);
- expect(new Set(changed).size).toBe(1750);
- expect(changed).toHaveLength(1750);
+ expect(new Set(changed).size).toBe(3500);
+ expect(changed).toHaveLength(3500);
 });
 
 test('Gmail quota errors are never immediately retried in a storm',async()=>{
