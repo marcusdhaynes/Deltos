@@ -248,7 +248,7 @@ test('Gmail batch modification runs at most three requests at a time and retries
    active++;peak=Math.max(peak,active);
    await new Promise(resolve=>setTimeout(resolve,15));
    active--;
-   if(failFirst){failFirst=false;throw Error('429 userRateLimitExceeded')}
+   if(failFirst){failFirst=false;throw Error('503 temporary Gmail backend error')}
    changed.push(...payload.ids);
    expect(payload.addLabelIds).toEqual(['Label_X']);
    expect(payload.removeLabelIds).toEqual(['INBOX']);
@@ -258,6 +258,15 @@ test('Gmail batch modification runs at most three requests at a time and retries
  expect(peak).toBe(3);
  expect(new Set(changed).size).toBe(1750);
  expect(changed).toHaveLength(1750);
+});
+
+test('Gmail quota errors are never immediately retried in a storm',async()=>{
+ let attempts=0;
+ await expect(deltosGmailRetry(async()=>{
+  attempts++;
+  throw Error('429 userRateLimitExceeded');
+ })).rejects.toThrow('429 userRateLimitExceeded');
+ expect(attempts).toBe(1);
 });
 
 test('Permanent Gmail permission errors are not retried or mistaken for success',async()=>{
