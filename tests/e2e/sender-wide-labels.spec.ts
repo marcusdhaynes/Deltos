@@ -6,6 +6,15 @@ import {resolve} from 'node:path';
 // No private Gmail data is accessed by these tests.
 const source=readFileSync(resolve(process.cwd(),'index.html'),'utf8');
 const raw=String.raw;
+// Load the real concurrency and retry functions from the shipped page rather
+// than copying a simplified implementation into the tests.
+const helperStart=source.indexOf('async function deltosGmailParallel(');
+const helperEnd=source.indexOf('var ut=class{',helperStart);
+if(helperStart<0||helperEnd<0)throw Error('Gmail concurrency helpers are missing');
+const {deltosGmailParallel,deltosGmailRetry}=new Function(
+ source.slice(helperStart,helperEnd)+';return {deltosGmailParallel,deltosGmailRetry}'
+)() as {deltosGmailParallel:(items:any[],limit:number,worker:(value:any,index:number)=>Promise<any>)=>Promise<any[]>,
+ deltosGmailRetry:(fn:()=>Promise<any>)=>Promise<any>};
 const validSender=(value:string)=>{
  const email=value.trim().toLowerCase();
  if(!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(email))throw Error('Invalid sender');
@@ -26,8 +35,8 @@ function methodAfter(needle:string,before:string){
  const end=source.indexOf('\n async ',start+8);
  if(end<0)throw Error('Missing end for '+needle);
  const declaration=source.slice(start,end);
- return new Function('v','y','C','h','return ({'+declaration+'}).ensureSenderLabel;')(
-  validSender,addressFrom,simpleSenderFilter,()=> 'random-id'
+ return new Function('v','y','C','h','deltosGmailParallel','deltosGmailRetry','return ({'+declaration+'}).ensureSenderLabel;')(
+  validSender,addressFrom,simpleSenderFilter,()=> 'random-id',deltosGmailParallel,deltosGmailRetry
  ) as (from:string,labelId:string)=>Promise<{sender:string,count:number,filterCreated:boolean}>;
 }
 const demoMethod=methodAfter(' async ensureSenderLabel(from,labelId,onProgress){','var g=class{demo=!0');
@@ -186,4 +195,102 @@ test('Inbox shows counts and a visible filter result; Filters shows actual desti
  await page.getByRole('button',{name:'View messages in Visible Label'}).click();
  await expect(page.locator('.deltos-filter-preview')).toContainText('Messages in Visible Label: 2');
  await expect(page.locator('.deltos-filter-preview')).toContainText('Lena Carter');
+});
+
+function shippedGmailMethod(method:string,nextMethod:string){
+ const start=source.indexOf('async '+method+'(',source.indexOf('var ut=class{'));
+ const end=source.indexOf(nextMethod,start);
+ if(start<0||end<0)throw Error('Missing shipped method '+method);
+ const body=source.slice(start,end);
+ return new Function('deltosGmailParallel','deltosGmailRetry','y',
+  'return ({'+body+'}).'+method+';')(deltosGmailParallel,deltosGmailRetry,addressFrom);
+}
+const exactSenderMessages=shippedGmailMethod('exactSenderMessages','async blockSender(');
+const concurrentBatchModify=shippedGmailMethod('batchModify','async profileEmail(');
+
+test('Delete filtering fetches sender metadata with twelve parallel workers and excludes unrelated senders',async()=>{
+ const ids=Array.from({length:34},(_,i)=>'id-'+i);
+ let active=0,peak=0,pageCalls=0;
+ const backend={
+  call:async(path:string)=>{
+   if(!path.startsWith('/messages?'))throw Error('Unexpected '+path);
+   const params=new URLSearchParams(path.split('?')[1]);
+   pageCalls++;
+   return params.get('pageToken')==='next'
+    ?{messages:ids.slice(20).map(id=>({id}))}
+    :{messages:ids.slice(0,20).map(id=>({id})),nextPageToken:'next'};
+  },
+  details:async(id:string)=>{
+   active++;peak=Math.max(peak,active);
+   await new Promise(resolve=>setTimeout(resolve,12));
+   active--;
+   return{id,from:id==='id-4'?'other@example.com':'billing@sender.example',labels:id==='id-2'?['INBOX']:[]};
+  }
+ };
+ const matches=await exactSenderMessages.call(backend,'billing@sender.example');
+ expect(pageCalls).toBe(2);
+ expect(peak).toBe(12);
+ expect(matches).toHaveLength(33);
+ expect(matches.some(([id]:[string,boolean])=>id==='id-4')).toBe(false);
+ expect(matches.find(([id]:[string,boolean])=>id==='id-2')[1]).toBe(true);
+});
+
+test('Gmail batch modification runs at most three requests at a time and retries transient errors',async()=>{
+ const ids=Array.from({length:1750},(_,i)=>'msg-'+i);
+ let active=0,peak=0,failFirst=true;
+ const changed:string[]=[];
+ const backend={
+  call:async(path:string,opts:any)=>{
+   expect(path).toBe('/messages/batchModify');
+   const payload=JSON.parse(opts.body);
+   active++;peak=Math.max(peak,active);
+   await new Promise(resolve=>setTimeout(resolve,15));
+   active--;
+   if(failFirst){failFirst=false;throw Error('429 userRateLimitExceeded')}
+   changed.push(...payload.ids);
+   expect(payload.addLabelIds).toEqual(['Label_X']);
+   expect(payload.removeLabelIds).toEqual(['INBOX']);
+  }
+ };
+ await concurrentBatchModify.call(backend,ids,['Label_X'],['INBOX']);
+ expect(peak).toBe(3);
+ expect(new Set(changed).size).toBe(1750);
+ expect(changed).toHaveLength(1750);
+});
+
+test('Permanent Gmail permission errors are not retried or mistaken for success',async()=>{
+ let attempts=0;
+ await expect(deltosGmailRetry(async()=>{attempts++;throw Error('403 insufficient authentication scopes')})).rejects.toThrow('403 insufficient authentication scopes');
+ expect(attempts).toBe(1);
+});
+
+test('Concurrent archive processing completes every batch and reports aggregate progress',async()=>{
+ const calls:{path:string,body?:any}[]=[];
+ const ids=Array.from({length:1250},(_,i)=>'bulk-'+i);
+ let active=0,peak=0;
+ const counts:number[]=[];
+ const backend={
+  filters:async()=>[],
+  call:async(path:string,opts?:any)=>{
+   if(path==='/settings/filters')return{id:'f1'};
+   if(path.startsWith('/messages?')){
+    const params=new URLSearchParams(path.split('?')[1]);
+    const token=params.get('pageToken');
+    const offset=token?Number(token):0;
+    return{messages:ids.slice(offset,offset+500).map(id=>({id})),
+     ...(offset+500<ids.length?{nextPageToken:String(offset+500)}:{})};
+   }
+   throw Error('Unexpected '+path);
+  },
+  batchModify:async(batch:string[],add:string[],remove:string[])=>{
+   active++;peak=Math.max(peak,active);
+   await new Promise(resolve=>setTimeout(resolve,15));active--;
+   calls.push({path:'/messages/batchModify',body:{ids:batch,add,remove}});
+  }
+ };
+ const result=await gmailMethod.call(backend,'billing@sender.example','Label_X',(p:any)=>counts.push(p.count));
+ expect(result.count).toBe(1250);
+ expect(peak).toBe(3);
+ expect(counts[counts.length-1]).toBe(1250);
+ expect(new Set(calls.flatMap(c=>c.body.ids)).size).toBe(1250);
 });

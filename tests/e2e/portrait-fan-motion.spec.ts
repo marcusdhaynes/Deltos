@@ -66,9 +66,20 @@ test('On portrait Triage, the top card shrinks and gives way to all five visible
   if(!initial)throw Error('Triage card not rendered');
   const handle=await subject.boundingBox();
   if(!handle)throw Error('Triage card subject not rendered');
-  const sx=handle.x+handle.width*.5,sy=handle.y+handle.height*.5;
+  const sx=Math.min(handle.x+handle.width*.5,size.width-150),sy=handle.y+handle.height*.5;
   await page.mouse.move(sx,sy);await page.mouse.down();
-  await page.mouse.move(sx+112,sy,{steps:16});
+  // Stay inside the viewport throughout the drag. Moving a captured pointer
+  // beyond a narrow phone's right edge can cancel a native gesture on CI.
+  const beforeHit=await page.evaluate(({sx,sy})=>{
+   const element=document.elementFromPoint(sx,sy);
+   return{tag:element?.tagName,classes:element?.className,button:!!element?.closest('button')};
+  },{sx,sy});
+  await page.mouse.move(sx+100,sy,{steps:18});
+  const count=await page.locator('.deltos-fan-choice').count();
+  if(count!==5)throw Error('Portrait Triage fan not opened: '+JSON.stringify({
+   size,sx,sy,beforeHit,dragging:await card.getAttribute('data-portrait-fan-drag'),
+   active:await page.evaluate(()=>document.activeElement?.className)
+  }));
   await visibleFanFits(page,size);
   await expect(card).toHaveAttribute('data-portrait-fan-drag','true');
   await expect.poll(async()=>{

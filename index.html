@@ -281,7 +281,35 @@ async function $e(){
   return true;
  }
  return false;
-}var et=`inbox-snoozes`,tt=`inbox-operations`;function nt(e,t){try{let n=localStorage.getItem(e);return n?JSON.parse(n):t}catch{return t}}function rt(e,t){try{localStorage.setItem(e,JSON.stringify(t))}catch{}}var it=class{entries=nt(et,[]);add(e,t,n){this.entries=this.entries.filter(t=>t.message_id!==e),this.entries.push({message_id:e,wake_at:t,demo:n}),this.save()}due(){let e=new Date().toISOString();return this.entries.filter(t=>t.wake_at<=e)}remove(e,t){this.entries=this.entries.filter(n=>n.message_id!==e||n.wake_at!==t),this.save()}save(){rt(et,this.entries)}},at=class{ops=nt(tt,[]);record(e){this.ops.push(e),this.save()}get(e){return this.ops.find(t=>t.id===e)}addMessages(e,t){let n=this.get(e);if(!n)return;let r=new Set(n.messages.map(e=>e.message_id));for(let e of t)r.has(e.message_id)||(n.messages.push(e),r.add(e.message_id));this.save()}setCount(e,t){let n=this.get(e);n&&(n.count=t,this.save())}setStatus(e,t,n){let r=this.get(e);r&&(r.status=t,n!==void 0&&(r.owned=n),this.save())}ownedActive(){return this.ops.filter(e=>e.owned&&e.status!==`undone`).sort((e,t)=>e.created<t.created?1:-1)}save(){rt(tt,this.ops)}},ot=`https://gmail.googleapis.com/gmail/v1/users/me`;function st(e){let t={};for(let n of e.payload?.headers??[])t[n.name.toLowerCase()]=n.value;return t}function ct(e){let t=st(e),n=y(t.from??``),r=e.labelIds??[];return{id:e.id,threadId:e.threadId??e.id,from:n,sender:b(t.from??``,n),subject:t.subject||`(no subject)`,snippet:e.snippet??``,timestamp:Number(e.internalDate??`0`)||0,unread:r.includes(`UNREAD`),pinned:r.includes(`STARRED`),labels:r,bundle:S(r,t.subject??``,n)}}function lt(){return`xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx`.replace(/[xy]/g,e=>{let t=Math.random()*16|0;return(e===`x`?t:t&3|8).toString(16)})}var ut=class{demo=!1;journal=new at;async call(e,t){let n=await We();const send=token=>fetch(`${ot}${e}`,{...t,headers:{...t?.headers??{},Authorization:`Bearer ${token}`}});let r=await send(n);if(r.status===401&&deltosAuthBackend()&&deltosSessionGet()){n=await deltosBackendToken();r=await send(n)}let i=null;try{i=await r.json()}catch{}if(!r.ok){let e=typeof i==`object`&&i?i.error?.message??JSON.stringify(i):`Gmail request failed (${r.status})`;if(r.status===401){Re();throw deltosReconnectRequired()}throw Error(typeof e==`string`?e:`Gmail request failed`)}return i}async details(e,t=!1){let n=t?`format=full`:`format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=To`,r=await this.call(`/messages/${encodeURIComponent(e)}?${n}`),i=ct(r);if(t){let e=st(r),content=deltosReadMime(r.payload??{});i.body=content.text,i.html=content.html,i.to=e.to??``,i.date=e.date??``}return i}async filters(){return(await this.call(`/settings/filters`)).filter??[]}
+}var et=`inbox-snoozes`,tt=`inbox-operations`;function nt(e,t){try{let n=localStorage.getItem(e);return n?JSON.parse(n):t}catch{return t}}function rt(e,t){try{localStorage.setItem(e,JSON.stringify(t))}catch{}}var it=class{entries=nt(et,[]);add(e,t,n){this.entries=this.entries.filter(t=>t.message_id!==e),this.entries.push({message_id:e,wake_at:t,demo:n}),this.save()}due(){let e=new Date().toISOString();return this.entries.filter(t=>t.wake_at<=e)}remove(e,t){this.entries=this.entries.filter(n=>n.message_id!==e||n.wake_at!==t),this.save()}save(){rt(et,this.entries)}},at=class{ops=nt(tt,[]);record(e){this.ops.push(e),this.save()}get(e){return this.ops.find(t=>t.id===e)}addMessages(e,t){let n=this.get(e);if(!n)return;let r=new Set(n.messages.map(e=>e.message_id));for(let e of t)r.has(e.message_id)||(n.messages.push(e),r.add(e.message_id));this.save()}setCount(e,t){let n=this.get(e);n&&(n.count=t,this.save())}setStatus(e,t,n){let r=this.get(e);r&&(r.status=t,n!==void 0&&(r.owned=n),this.save())}ownedActive(){return this.ops.filter(e=>e.owned&&e.status!==`undone`).sort((e,t)=>e.created<t.created?1:-1)}save(){rt(tt,this.ops)}},ot=`https://gmail.googleapis.com/gmail/v1/users/me`;function st(e){let t={};for(let n of e.payload?.headers??[])t[n.name.toLowerCase()]=n.value;return t}function ct(e){let t=st(e),n=y(t.from??``),r=e.labelIds??[];return{id:e.id,threadId:e.threadId??e.id,from:n,sender:b(t.from??``,n),subject:t.subject||`(no subject)`,snippet:e.snippet??``,timestamp:Number(e.internalDate??`0`)||0,unread:r.includes(`UNREAD`),pinned:r.includes(`STARRED`),labels:r,bundle:S(r,t.subject??``,n)}}function lt(){return`xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx`.replace(/[xy]/g,e=>{let t=Math.random()*16|0;return(e===`x`?t:t&3|8).toString(16)})}// Limit Gmail parallelism: fast for large mailboxes, without bursty unlimited calls.
+// Results preserve input order; a failed request stops new work, but joins all
+// in-flight requests before reporting the error.
+async function deltosGmailParallel(items,limit,work){
+ const results=new Array(items.length);
+ let next=0,firstError=null;
+ const workers=Array.from({length:Math.min(limit,items.length)},async()=>{
+  while(!firstError){
+   const index=next++;
+   if(index>=items.length)return;
+   try{results[index]=await work(items[index],index)}
+   catch(error){firstError=firstError||error}
+  }
+ });
+ await Promise.all(workers);
+ if(firstError)throw firstError;
+ return results;
+}
+async function deltosGmailRetry(work){
+ for(let attempt=0;attempt<4;attempt++){
+  try{return await work()}
+  catch(error){
+   const message=String(error?.message||error);
+   if(attempt===3||!/(?:429|500|502|503|504|rate.?limit|quota.?exceeded|backend.?error|resource.?exhausted)/i.test(message))throw error;
+   await new Promise(resolve=>setTimeout(resolve,200*Math.pow(2,attempt)+Math.random()*140));
+  }
+ }
+}
+var ut=class{demo=!1;journal=new at;async call(e,t){let n=await We();const send=token=>fetch(`${ot}${e}`,{...t,headers:{...t?.headers??{},Authorization:`Bearer ${token}`}});let r=await send(n);if(r.status===401&&deltosAuthBackend()&&deltosSessionGet()){n=await deltosBackendToken();r=await send(n)}let i=null;try{i=await r.json()}catch{}if(!r.ok){let e=typeof i==`object`&&i?i.error?.message??JSON.stringify(i):`Gmail request failed (${r.status})`;if(r.status===401){Re();throw deltosReconnectRequired()}throw Error(typeof e==`string`?e:`Gmail request failed`)}return i}async details(e,t=!1){let n=t?`format=full`:`format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=To`,r=await this.call(`/messages/${encodeURIComponent(e)}?${n}`),i=ct(r);if(t){let e=st(r),content=deltosReadMime(r.payload??{});i.body=content.text,i.html=content.html,i.to=e.to??``,i.date=e.date??``}return i}async filters(){return(await this.call(`/settings/filters`)).filter??[]}
  async listLabels(){return (await this.call('/labels')).labels?.filter(l=>l.type==='user'||String(l.id).startsWith('Label_')).map(l=>({id:l.id,name:l.name}))||[]}
  async createLabel(name){
   name=String(name||'').trim();
@@ -321,29 +349,44 @@ async function $e(){
    futureError=String(error?.message||'Gmail rejected the new filter.');
    console.warn('Future archive filter could not be installed:',futureError);
   }
-  let count=0,pageToken=null;
-  const visitedTokens=new Set(),seenIds=new Set();
+  // List all IDs before changing labels, to avoid invalidating Gmail pagination.
+  // Page tokens must be followed in order; updates to the resulting pages can
+  // run concurrently afterward, with three controlled Gmail batch workers.
+  let pageToken=null;
+  const visitedTokens=new Set(),seenIds=new Set(),batches=[];
   do{
    const params=new URLSearchParams({q:'from:'+sender,maxResults:'500',includeSpamTrash:'true'});
    if(pageToken)params.set('pageToken',pageToken);
-   const page=await this.call('/messages?'+params.toString());
+   const page=await deltosGmailRetry(()=>this.call('/messages?'+params.toString()));
    const ids=(page.messages||[]).map(item=>item.id).filter(id=>{
     if(!id||seenIds.has(id))return false;
     seenIds.add(id);return true;
    });
-   if(ids.length)await this.batchModify(ids,[labelId],['INBOX']);
-   count+=ids.length;
-   onProgress?.({sender,count,stage:'archiving'});
+   if(ids.length)batches.push(ids);
    pageToken=page.nextPageToken||null;
    if(pageToken){
-    if(visitedTokens.has(pageToken))throw Error('Gmail returned a repeated page; sender labeling stopped after '+count+' messages.');
+    if(visitedTokens.has(pageToken))throw Error('Gmail repeated its page token; no messages were changed.');
     visitedTokens.add(pageToken);
    }
   }while(pageToken);
+  let count=0;
+  await deltosGmailParallel(batches,3,async ids=>{
+   await this.batchModify(ids,[labelId],['INBOX']);
+   count+=ids.length;
+   onProgress?.({sender,count,stage:'archiving'});
+  });
   return{sender,count,filterCreated,futureActive,futureError};
  }
 
- async batchModify(e,t=[],n=[]){for(let r=0;r<e.length;r+=500)await this.call(`/messages/batchModify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({ids:e.slice(r,r+500),addLabelIds:t,removeLabelIds:n})})}async profileEmail(){return(await this.call(`/profile`)).emailAddress??``}async list(e,t,n,onProgress,pageSize=50){let spec=deltosSpec(t),r=new URLSearchParams({maxResults:String(Math.max(1,Math.min(100,Number(pageSize)||50)))}),i=[],a=spec.text.trim();if(a&&spec.field===`sender`)a=`from:${a}`;else if(a&&spec.field===`subject`)a=`subject:${a}`;e===`inbox`||e===`triage`?i.push(`INBOX`):e===`pinned`?i.push(await this.openedLabel(false)):e===`starred`?(i.push(`STARRED`),r.set(`includeSpamTrash`,`true`)):e===`trash`?(i.push(`TRASH`),r.set(`includeSpamTrash`,`true`)):a+=e===`done`?` -in:inbox -in:trash -in:spam -in:sent`:` -in:trash -in:spam`;if(spec.mode!==`any`&&spec.start){let from=Math.floor(new Date(spec.start).getTime()/1000),end=spec.mode===`single`?new Date(spec.start).getTime()+59999:spec.end?new Date(spec.end).getTime():null;if(Number.isFinite(from))a+=` after:${from-1}`;if(end!==null&&Number.isFinite(end))a+=` before:${Math.ceil(end/1000)+1}`}if(e===`pinned`&&!i[0])return{messages:[],nextPage:null};for(let e of i)r.append(`labelIds`,e);a.trim()&&r.set(`q`,a.trim()),n&&r.set(`pageToken`,n);let o=await this.call(`/messages?${r.toString()}`),s=[];
+ async batchModify(ids,add=[],remove=[]){
+  const chunks=[];for(let i=0;i<ids.length;i+=500)chunks.push(ids.slice(i,i+500));
+  await deltosGmailParallel(chunks,3,async batch=>{
+   await deltosGmailRetry(()=>this.call('/messages/batchModify',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ids:batch,addLabelIds:add,removeLabelIds:remove})
+   }));
+  });
+ }async profileEmail(){return(await this.call(`/profile`)).emailAddress??``}async list(e,t,n,onProgress,pageSize=50){let spec=deltosSpec(t),r=new URLSearchParams({maxResults:String(Math.max(1,Math.min(100,Number(pageSize)||50)))}),i=[],a=spec.text.trim();if(a&&spec.field===`sender`)a=`from:${a}`;else if(a&&spec.field===`subject`)a=`subject:${a}`;e===`inbox`||e===`triage`?i.push(`INBOX`):e===`pinned`?i.push(await this.openedLabel(false)):e===`starred`?(i.push(`STARRED`),r.set(`includeSpamTrash`,`true`)):e===`trash`?(i.push(`TRASH`),r.set(`includeSpamTrash`,`true`)):a+=e===`done`?` -in:inbox -in:trash -in:spam -in:sent`:` -in:trash -in:spam`;if(spec.mode!==`any`&&spec.start){let from=Math.floor(new Date(spec.start).getTime()/1000),end=spec.mode===`single`?new Date(spec.start).getTime()+59999:spec.end?new Date(spec.end).getTime():null;if(Number.isFinite(from))a+=` after:${from-1}`;if(end!==null&&Number.isFinite(end))a+=` before:${Math.ceil(end/1000)+1}`}if(e===`pinned`&&!i[0])return{messages:[],nextPage:null};for(let e of i)r.append(`labelIds`,e);a.trim()&&r.set(`q`,a.trim()),n&&r.set(`pageToken`,n);let o=await this.call(`/messages?${r.toString()}`),s=[];
  const entries=o.messages??[];
  const filterLoaded=messages=>{
   let result=messages;
@@ -362,7 +405,31 @@ async function $e(){
   s.push(...batch.filter(Boolean));
   if(typeof onProgress==='function')onProgress(filterLoaded(s));
  }
- return{messages:filterLoaded(s),nextPage:o.nextPageToken??null}}async detail(e){return this.details(e,!0)}async keep(e){let t=v((await this.details(e)).from),n=w(await this.filters(),t);return await this.call(`/messages/${encodeURIComponent(e)}/modify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({addLabelIds:n.addLabelIds,removeLabelIds:n.removeLabelIds})}),{matched:n.matched,skipped:n.skipped}}async done(e){await this.call(`/messages/${encodeURIComponent(e)}/modify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({removeLabelIds:[`INBOX`]})})}async pin(e){let t=!(await this.details(e)).pinned;return await this.call(`/messages/${encodeURIComponent(e)}/modify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify(t?{addLabelIds:[`STARRED`]}:{removeLabelIds:[`STARRED`]})}),t}async snoozeLocal(e){await this.done(e)}async wake(e){await this.call(`/messages/${encodeURIComponent(e)}/modify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({addLabelIds:[`INBOX`]})})}async previewSender(e){let t=v((await this.details(e)).from),n=await this.call(`/messages?${new URLSearchParams({q:`from:${t} -in:trash -in:spam -in:drafts`,maxResults:`1`}).toString()}`),r=(await this.filters()).some(e=>C(e,t)&&(e.action?.addLabelIds??[]).includes(`TRASH`));return{sender:t,count:n.resultSizeEstimate??0,existing_rule:r,exact:!1}}async exactSenderMessages(e){let t=[],n;for(;;){let r=new URLSearchParams({q:`from:${e} -in:trash -in:spam -in:drafts`,maxResults:`500`});n&&r.set(`pageToken`,n);let i=await this.call(`/messages?${r.toString()}`);for(let n of i.messages??[])try{let r=await this.details(n.id);r.from===e&&t.push([r.id,r.labels.includes(`INBOX`)])}catch(e){if(e instanceof Error&&e.message.includes(`404`))continue;throw e}if(n=i.nextPageToken,!n)break}return t}async blockSender(e,onProgress){let t=lt(),n=null,r=!1,futureActive=!1,futureError='';try{
+ return{messages:filterLoaded(s),nextPage:o.nextPageToken??null}}async detail(e){return this.details(e,!0)}async keep(e){let t=v((await this.details(e)).from),n=w(await this.filters(),t);return await this.call(`/messages/${encodeURIComponent(e)}/modify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({addLabelIds:n.addLabelIds,removeLabelIds:n.removeLabelIds})}),{matched:n.matched,skipped:n.skipped}}async done(e){await this.call(`/messages/${encodeURIComponent(e)}/modify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({removeLabelIds:[`INBOX`]})})}async pin(e){let t=!(await this.details(e)).pinned;return await this.call(`/messages/${encodeURIComponent(e)}/modify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify(t?{addLabelIds:[`STARRED`]}:{removeLabelIds:[`STARRED`]})}),t}async snoozeLocal(e){await this.done(e)}async wake(e){await this.call(`/messages/${encodeURIComponent(e)}/modify`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({addLabelIds:[`INBOX`]})})}async previewSender(e){let t=v((await this.details(e)).from),n=await this.call(`/messages?${new URLSearchParams({q:`from:${t} -in:trash -in:spam -in:drafts`,maxResults:`1`}).toString()}`),r=(await this.filters()).some(e=>C(e,t)&&(e.action?.addLabelIds??[]).includes(`TRASH`));return{sender:t,count:n.resultSizeEstimate??0,existing_rule:r,exact:!1}}async exactSenderMessages(sender){
+ // Gmail's from: query can include aliases. Check metadata to make certain
+ // nothing from another address is deleted. Previously this made one
+ // sequential request for every email; now twelve bounded workers run in
+ // parallel, reusing Gmail search to obtain all IDs first.
+ const seenTokens=new Set(),seenIds=new Set(),ids=[];let token=null;
+ do{
+  const params=new URLSearchParams({q:'from:'+sender+' -in:trash -in:spam -in:drafts',maxResults:'500'});
+  if(token)params.set('pageToken',token);
+  const page=await deltosGmailRetry(()=>this.call('/messages?'+params.toString()));
+  for(const item of page.messages||[])if(item.id&&!seenIds.has(item.id)){seenIds.add(item.id);ids.push(item.id)}
+  token=page.nextPageToken||null;
+  if(token){if(seenTokens.has(token))throw Error('Gmail returned a repeated page token');seenTokens.add(token)}
+ }while(token);
+ const matches=await deltosGmailParallel(ids,12,async id=>{
+  try{
+   const detail=await deltosGmailRetry(()=>this.details(id));
+   return y(String(detail.from||''))===sender?[detail.id,detail.labels.includes('INBOX')]:null;
+  }catch(error){
+   if(/(?:404|not found)/i.test(String(error?.message||error)))return null;
+   throw error;
+  }
+ });
+ return matches.filter(Boolean);
+}async blockSender(e,onProgress){let t=lt(),n=null,r=!1,futureActive=!1,futureError='';try{
  let i=v((await this.details(e)).from);
  if(i===y(await this.profileEmail()))throw Error('Blocking your own Gmail address is not allowed');
  try{
@@ -373,13 +440,17 @@ async function $e(){
  }catch(error){futureError=String(error?.message||'Gmail rejected the future filter.');console.warn('Future delete filter could not be installed:',futureError)}
  this.journal.record({id:t,email:i,filter_id:n,owned:r,status:'running',created:new Date().toISOString(),count:0,messages:[]});
  const matches=await this.exactSenderMessages(i);
- for(let index=0;index<matches.length;index+=500){
-  const batch=matches.slice(index,index+500);
-  this.journal.addMessages(t,batch.map(([id,was_inbox])=>({message_id:id,was_inbox})));
+ const chunks=[];for(let index=0;index<matches.length;index+=500)chunks.push(matches.slice(index,index+500));
+ let completed=0;
+ await deltosGmailParallel(chunks,3,async batch=>{
   await this.batchModify(batch.map(([id])=>id),['TRASH'],['INBOX']);
-  this.journal.setCount(t,index+batch.length);
-  onProgress?.({sender:i,count:index+batch.length,stage:'deleting'});
- }
+  // Journal only successfully processed messages. Undo must never restore
+  // messages which a partially failed operation did not actually change.
+  this.journal.addMessages(t,batch.map(([id,was_inbox])=>({message_id:id,was_inbox})));
+  completed+=batch.length;
+  this.journal.setCount(t,completed);
+  onProgress?.({sender:i,count:completed,stage:'deleting'});
+ });
  this.journal.setStatus(t,'complete');
  return{operation_id:t,count:matches.length,sender:i,filter_created:r,futureActive,futureError};
  }catch(error){
@@ -1530,9 +1601,13 @@ function on(){try{let e=localStorage.getItem(an);if(e===`light`||e===`dark`||e==
   if(!label?.id)throw Error('A valid label is required.');
   // Keep the chosen message, then label the sender's entire mailbox history
   // and create an exact-address Gmail filter for future incoming messages.
-  await backend.applyLabel(message.id,label.id);
-  await backend.markRead(message.id);
-  await backend.markOpened(message.id);
+  // Independent single-message updates can run together instead of waiting
+  // three Gmail round trips before bulk sender filtering begins.
+  await Promise.all([
+   backend.applyLabel(message.id,label.id),
+   backend.markRead(message.id),
+   backend.markOpened(message.id)
+  ]);
   const bulk=await backend.ensureSenderLabel(message.from,label.id,progress=>{
    setFilterProgress({kind:'archive',status:'working',sender:progress.sender,count:progress.count});
   });
