@@ -1679,7 +1679,9 @@ function sn(){let[e,t]=(0,f.useState)(()=>{const connected=!!(Ie()?.access_token
  let cachedPreview=false;
  try{
   if(!more&&!backend.demo&&!['triage','inbox'].includes(folder)&&window.DeltosMailMirror){
-   const cached=await window.DeltosMailMirror.preview(folder,current.search,current.sf,target);
+   let cached=[];
+   try{cached=await window.DeltosMailMirror.preview(folder,current.search,current.sf,target)}
+   catch(error){console.warn('Saved mail unavailable; continuing with Gmail:',error?.message||error)}
    if(isCurrent()&&cached.length){cachedPreview=true;s(cached)}
    if(!navigator.onLine&&isCurrent()){
     E('Offline: showing previously synchronized messages. Changes require a Gmail connection.');
