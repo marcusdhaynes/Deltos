@@ -350,7 +350,7 @@ var ut=class{demo=!1;journal=new at;async call(path,options){
  };
  if(!budget)return send();
  if(method==='GET')return budget.readRequest(path,send);
- budget.changed();
+ budget.changed(path,options);
  return budget.run(budget.estimate(path,method),send,10);
 }async details(e,t=!1){let n=t?`format=full`:`format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=To`,r=await this.call(`/messages/${encodeURIComponent(e)}?${n}`),i=ct(r);if(t){let e=st(r),content=deltosReadMime(r.payload??{});i.body=content.text,i.html=content.html,i.to=e.to??``,i.date=e.date??``}return i}async filters(){return(await this.call(`/settings/filters`)).filter??[]}
  async listLabels(){return (await this.call('/labels')).labels?.filter(l=>l.type==='user'||String(l.id).startsWith('Label_')).map(l=>({id:l.id,name:l.name}))||[]}

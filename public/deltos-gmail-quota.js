@@ -105,7 +105,32 @@
   }).finally(()=>pending.delete(id));
   pending.set(id,task);return task;
  }
- function changed(){cache.clear();pending.clear()}
+ function changed(path,options){
+  if(!path){cache.clear();pending.clear();return}
+  const accountPrefix=account()+'|';
+  const changedIds=new Set();
+  const direct=String(path).match(/\/messages\/([^/?]+)\/(?:modify|trash|untrash|delete)$/);
+  if(direct)changedIds.add(decodeURIComponent(direct[1]));
+  if(/\/messages\/batch(?:Modify|Delete)$/.test(path)){
+   try{const body=JSON.parse(options?.body||'{}');for(const id of body.ids||[])changedIds.add(String(id))}catch{}
+  }
+  for(const k of cache.keys()){
+   if(!k.startsWith(accountPrefix))continue;
+   const p=k.slice(accountPrefix.length);
+   // New listings must be fetched after an action. Unchanged headers stay cached.
+   if(p.startsWith('/messages?')||p.startsWith('/threads?')||
+      p.startsWith('/drafts?')||p.startsWith('/labels')||p.startsWith('/settings/filters')){
+    cache.delete(k);continue;
+   }
+   const match=p.match(/^\/messages\/([^/?]+)(?:\?|$)/);
+   if(match&&changedIds.has(decodeURIComponent(match[1])))cache.delete(k);
+   if(changedIds.size===0&&p.startsWith('/messages/'))cache.delete(k);
+  }
+  // An in-flight lookup begun before a mutation must not become the next cache hit.
+  for(const k of pending.keys()){
+   if(k.startsWith(accountPrefix))pending.delete(k);
+  }
+ }
  function status(){const d=read();return{queued:queue.length,active,pausedUntil:d.pauseUntil||0,usedInWindow:(d.events||[]).filter(x=>x.t>Date.now()-WINDOW).reduce((a,b)=>a+b.u,0),limit:LIMIT}}
  root.DeltosGmailQuota={run,estimate,pause,success,readRequest,changed,status};
 })(window);
