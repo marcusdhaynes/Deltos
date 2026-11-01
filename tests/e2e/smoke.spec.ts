@@ -117,3 +117,45 @@ test('recent session preview paints before a slow Gmail network request',async({
  await expect(page.locator('.deck-subject').filter({hasText:'Instant preview from this tab'})).toBeVisible({timeout:2200});
  await expect(page.getByText('Bringing back a little inbox magic…')).toHaveCount(0);
 });
+
+test('Gmail quota coordinator caches identical requests and budgets costly methods',async({page})=>{
+ await page.goto('/');
+ await expect(page.locator('.triage-deck')).toBeVisible();
+ const outcome=await page.evaluate(async()=>{
+  const quota=window.DeltosGmailQuota;
+  let fetches=0;
+  const first=()=>quota.readRequest('/profile',async()=>{fetches++;return{ok:true}});
+  const values=await Promise.all([first(),first(),first()]);
+  return{fetches,values,costList:quota.estimate('/messages?maxResults=50','GET'),
+   costGet:quota.estimate('/messages/id?format=metadata','GET'),
+   costBatch:quota.estimate('/messages/batchModify','POST'),
+   costFull:quota.estimate('/messages/id?format=full','GET'),
+   budget:quota.status().limit};
+ });
+ expect(outcome.fetches).toBe(1);
+ expect(outcome.values).toEqual([{ok:true},{ok:true},{ok:true}]);
+ expect(outcome.costList).toBe(5);
+ expect(outcome.costGet).toBe(20);
+ expect(outcome.costBatch).toBe(50);
+ expect(outcome.costFull).toBe(60);
+ expect(outcome.budget).toBeLessThan(6000);
+});
+test('Gmail quota error activates a shared cooldown instead of retry storms',async({page})=>{
+ await page.addInitScript(()=>{
+  localStorage.setItem('inbox-gmail-token',JSON.stringify({access_token:'quota-test-token',expires_at:Date.now()+3600000}));
+  localStorage.setItem('deltos-last-google-account','quota-test@example.test');
+ });
+ let attempts=0;
+ await page.route('https://gmail.googleapis.com/**',async route=>{
+  attempts++;
+  await route.fulfill({status:403,contentType:'application/json',
+   body:JSON.stringify({error:{code:403,message:"Quota exceeded for quota metric 'Total Query Cost' and limit 'Units per minute per user'."}})});
+ });
+ await page.goto('/');
+ await expect(page.locator('.triage-deck')).toBeVisible();
+ await expect.poll(async()=>page.evaluate(()=>window.DeltosGmailQuota.status().pausedUntil),{timeout:5000}).toBeGreaterThan(0);
+ await page.waitForTimeout(500);
+ expect(attempts).toBeLessThanOrEqual(4);
+ const status=await page.evaluate(()=>window.DeltosGmailQuota.status());
+ expect(status.pausedUntil).toBeGreaterThan(Date.now()+20000);
+});
