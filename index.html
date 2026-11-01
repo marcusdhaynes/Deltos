@@ -10,6 +10,7 @@
     <meta name="description" content="An Inbox by Gmail-inspired mail client with sender-wide swipe filtering." />
     <title>Deltos — a calmer kind of email</title>
     <script src="https://accounts.google.com/gsi/client" async defer data-deltos-google-identity></script>
+    <script src="./deltos-gmail-quota.js" defer></script>
     <script src="./deltos-label-intelligence.js" defer></script>
     <link rel="stylesheet" href="./deltos-label-fan.css" />
     <!-- Install static-file caching off the critical rendering path, like Somniel. -->
@@ -312,16 +313,46 @@ async function deltosGmailParallel(items,limit,work){
  return results;
 }
 async function deltosGmailRetry(work){
- for(let attempt=0;attempt<4;attempt++){
+ for(let attempt=0;attempt<3;attempt++){
   try{return await work()}
   catch(error){
+   if(error?.code==='DELTOS_GMAIL_QUOTA')throw error;
    const message=String(error?.message||error);
-   if(attempt===3||!/(?:429|500|502|503|504|rate.?limit|quota.?exceeded|backend.?error|resource.?exhausted)/i.test(message))throw error;
-   await new Promise(resolve=>setTimeout(resolve,200*Math.pow(2,attempt)+Math.random()*140));
+   if(attempt===2||!/(?:500|502|503|504|backend.?error)/i.test(message))throw error;
+   await new Promise(resolve=>setTimeout(resolve,1000*Math.pow(2,attempt)+Math.random()*500));
   }
  }
 }
-var ut=class{demo=!1;journal=new at;async call(e,t){let n=await We();const send=token=>fetch(`${ot}${e}`,{...t,headers:{...t?.headers??{},Authorization:`Bearer ${token}`}});let r=await send(n);if(r.status===401&&deltosAuthBackend()&&deltosSessionGet()){n=await deltosBackendToken();r=await send(n)}let i=null;try{i=await r.json()}catch{}if(!r.ok){let e=typeof i==`object`&&i?i.error?.message??JSON.stringify(i):`Gmail request failed (${r.status})`;if(r.status===401){Re();throw deltosReconnectRequired()}throw Error(typeof e==`string`?e:`Gmail request failed`)}return i}async details(e,t=!1){let n=t?`format=full`:`format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=To`,r=await this.call(`/messages/${encodeURIComponent(e)}?${n}`),i=ct(r);if(t){let e=st(r),content=deltosReadMime(r.payload??{});i.body=content.text,i.html=content.html,i.to=e.to??``,i.date=e.date??``}return i}async filters(){return(await this.call(`/settings/filters`)).filter??[]}
+var ut=class{demo=!1;journal=new at;async call(path,options){
+ const budget=window.DeltosGmailQuota,method=String(options?.method||'GET').toUpperCase();
+ const send=async()=>{
+  let token=await We();
+  const fetchWithToken=key=>fetch(`${ot}${path}`,{...options,headers:{...options?.headers??{},Authorization:`Bearer ${key}`}});
+  let response=await fetchWithToken(token);
+  if(response.status===401&&deltosAuthBackend()&&deltosSessionGet()){
+   token=await deltosBackendToken();
+   response=await fetchWithToken(token);
+  }
+  let data=null;
+  try{data=await response.json()}catch{}
+  if(!response.ok){
+   const msg=typeof data==='object'&&data?(data.error?.message||JSON.stringify(data)):`Gmail request failed (${response.status})`;
+   if(response.status===401){Re();budget?.changed();throw deltosReconnectRequired()}
+   if((response.status===403||response.status===429)&&/quota|rate.?limit|too many|resource.?exhausted|units per minute/i.test(String(msg))){
+    budget?.pause(response.headers.get('Retry-After'));
+    const err=Error('Gmail is temporarily at its request limit. Deltos has paused syncing automatically to protect your account. Existing messages remain available.');
+    err.code='DELTOS_GMAIL_QUOTA';throw err;
+   }
+   throw Error(String(msg||'Gmail request failed'));
+  }
+  budget?.success();
+  return data;
+ };
+ if(!budget)return send();
+ if(method==='GET')return budget.readRequest(path,send);
+ budget.changed();
+ return budget.run(budget.estimate(path,method),send,10);
+}async details(e,t=!1){let n=t?`format=full`:`format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=To`,r=await this.call(`/messages/${encodeURIComponent(e)}?${n}`),i=ct(r);if(t){let e=st(r),content=deltosReadMime(r.payload??{});i.body=content.text,i.html=content.html,i.to=e.to??``,i.date=e.date??``}return i}async filters(){return(await this.call(`/settings/filters`)).filter??[]}
  async listLabels(){return (await this.call('/labels')).labels?.filter(l=>l.type==='user'||String(l.id).startsWith('Label_')).map(l=>({id:l.id,name:l.name}))||[]}
  async createLabel(name){
   name=String(name||'').trim();
