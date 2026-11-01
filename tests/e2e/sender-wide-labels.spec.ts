@@ -301,7 +301,8 @@ test('Concurrent archive processing completes every batch and reports aggregate 
  };
  const result=await gmailMethod.call(backend,'billing@sender.example','Label_X',(p:any)=>counts.push(p.count));
  expect(result.count).toBe(1250);
- expect(peak).toBe(3);
+ // With 1,000-message batches, 1,250 messages correctly need two requests.
+ expect(peak).toBe(2);
  expect(counts[counts.length-1]).toBe(1250);
  expect(new Set(calls.flatMap(c=>c.body.ids)).size).toBe(1250);
 });
