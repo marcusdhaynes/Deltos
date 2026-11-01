@@ -95,3 +95,25 @@ test('Triage renders before a slow Gmail profile response',async({page})=>{
  await expect(page.locator('.sidebar')).toBeVisible({timeout:2000});
  await expect(page.getByText('Bringing back a little inbox magic…')).toHaveCount(0);
 });
+
+test('recent session preview paints before a slow Gmail network request',async({page})=>{
+ await page.addInitScript(()=>{
+  const account='cached@example.test';
+  localStorage.setItem('inbox-gmail-token',JSON.stringify({access_token:'slow-cached-token',expires_at:Date.now()+3600000}));
+  localStorage.setItem('deltos-last-google-account',account);
+  sessionStorage.setItem('deltos-visible-mail-v1',JSON.stringify({
+   account,savedAt:Date.now(),items:[{id:'cached-1',threadId:'cached-1',sender:'Cached Sender',
+    from:'cached@example.test',subject:'Instant preview from this tab',
+    snippet:'Preview without full body',timestamp:Date.now(),bundle:'',unread:true,pinned:false,
+    labels:['INBOX','UNREAD']}]
+  }));
+ });
+ await page.route('https://gmail.googleapis.com/**',async route=>{
+  await new Promise(resolve=>setTimeout(resolve,3800));
+  if(route.request().url().includes('/profile'))return route.fulfill({json:{emailAddress:'cached@example.test'}});
+  return route.fulfill({json:{messages:[]}});
+ });
+ await page.goto('/');
+ await expect(page.locator('.deck-subject').filter({hasText:'Instant preview from this tab'})).toBeVisible({timeout:2200});
+ await expect(page.getByText('Bringing back a little inbox magic…')).toHaveCount(0);
+});
