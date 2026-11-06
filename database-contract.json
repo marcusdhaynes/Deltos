@@ -28,5 +28,14 @@
   "current_stage": "database_reserved_not_live",
   "source_data_migrated": false,
   "docs": "AGENTS.md",
-  "canonical_map": "marcusdhaynes/somniel-holdings/database-routing.json"
+  "canonical_map": "marcusdhaynes/somniel-holdings/database-routing.json",
+  "domain_storage_guidance": {
+    "store": [
+      "User-authorized app preferences, triage rules, custom labels, workflow state and non-sensitive sync metadata"
+    ],
+    "avoid": [
+      "Raw Gmail mail bodies or attachments without explicit purpose and authorization; OAuth credentials or confirmation codes"
+    ],
+    "cutover": "Maintain the existing Gmail API integration; never mistake Gmail provider storage for data to import blindly."
+  }
 }
