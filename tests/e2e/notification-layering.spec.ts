@@ -51,8 +51,8 @@ for (const viewport of [
     expect(layers.popupZ).toBeGreaterThan(250);
     expect(layers.dialogZ).toBeGreaterThan(layers.popupZ);
 
-    await panel.getByRole('button', { name: 'All' }).click();
-    await expect(panel.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true');
+    await panel.getByRole('button', { name: 'All', exact: true }).click();
+    await expect(panel.getByRole('button', { name: 'All', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await panel.getByRole('button', { name: 'Close notifications' }).click();
     await expect(panel).toHaveCount(0);
   });
