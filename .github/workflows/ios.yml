@@ -1,0 +1,136 @@
+name: Build Deltos iOS releases
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deltos-ios-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  simulator:
+    name: Unsigned iOS simulator recovery build
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios-sim
+      - name: Prepare Tauri iOS project
+        shell: bash
+        run: |
+          npm install --no-audit --no-fund
+          npm run icons
+          npm run tauri -- ios init --ci
+      - name: Compile the unsigned iOS simulator application
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECT="$(find src-tauri/gen/apple -maxdepth 3 -name '*.xcodeproj' -print -quit)"
+          test -n "$PROJECT"
+          SCHEME="$(xcodebuild -list -json -project "$PROJECT" | jq -r '.project.schemes[0]')"
+          test -n "$SCHEME"
+          test "$SCHEME" != null
+          xcodebuild -project "$PROJECT" -scheme "$SCHEME" \
+            -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/deltos-ios-build" \
+            CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
+          APP="$(find "$RUNNER_TEMP/deltos-ios-build/Build/Products" -type d -name '*.app' -print -quit)"
+          test -n "$APP"
+          mkdir -p ios-output
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "ios-output/Deltos-iOS-Simulator-${GITHUB_SHA}.zip"
+          sha256sum "ios-output/Deltos-iOS-Simulator-${GITHUB_SHA}.zip" > "ios-output/Deltos-iOS-Simulator-${GITHUB_SHA}.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Deltos-iOS-Simulator-${{ github.sha }}
+          path: ios-output/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Attach unsigned simulator build to the permanent release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="snapshot-${GITHUB_SHA}"
+          for ATTEMPT in $(seq 1 40); do
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then break; fi
+            sleep 5
+          done
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          gh release upload "$TAG" ios-output/* --repo "$GITHUB_REPOSITORY" --clobber
+
+  signed-iphone:
+    name: Signed iPhone IPA (requires Apple signing)
+    if: vars.DELTOS_IOS_SIGNED_RELEASES_ENABLED == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+      - name: Prepare signed iOS build
+        shell: bash
+        env:
+          APPLE_API_KEY_SECRET: ${{ secrets.DELTOS_APPLE_API_PRIVATE_KEY }}
+          APPLE_API_KEY: ${{ secrets.DELTOS_APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.DELTOS_APPLE_API_ISSUER }}
+          IOS_CERTIFICATE: ${{ secrets.DELTOS_IOS_CERTIFICATE }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.DELTOS_IOS_CERTIFICATE_PASSWORD }}
+          IOS_MOBILE_PROVISION: ${{ secrets.DELTOS_IOS_MOBILE_PROVISION }}
+        run: |
+          set -euo pipefail
+          for KEY in APPLE_API_KEY_SECRET APPLE_API_KEY APPLE_API_ISSUER IOS_CERTIFICATE IOS_CERTIFICATE_PASSWORD IOS_MOBILE_PROVISION; do
+            if [[ -z "${!KEY}" ]]; then
+              echo "::error::Signed iPhone release enabled but $KEY is not configured."
+              exit 1
+            fi
+          done
+          echo "$APPLE_API_KEY_SECRET" > "$RUNNER_TEMP/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/AuthKey.p8"
+          echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
+          npm install --no-audit --no-fund
+          npm run icons
+          npm run tauri -- ios init --ci
+      - name: Build signed iPhone IPA
+        shell: bash
+        env:
+          APPLE_API_KEY: ${{ secrets.DELTOS_APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.DELTOS_APPLE_API_ISSUER }}
+          IOS_CERTIFICATE: ${{ secrets.DELTOS_IOS_CERTIFICATE }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.DELTOS_IOS_CERTIFICATE_PASSWORD }}
+          IOS_MOBILE_PROVISION: ${{ secrets.DELTOS_IOS_MOBILE_PROVISION }}
+        run: |
+          npm run tauri -- ios build --ci --export-method app-store-connect
+          IPA="$(find src-tauri/gen/apple -type f -name '*.ipa' -print -quit)"
+          test -n "$IPA"
+          mkdir -p ios-output
+          cp "$IPA" "ios-output/Deltos-iPhone-${GITHUB_SHA}.ipa"
+          sha256sum "ios-output/Deltos-iPhone-${GITHUB_SHA}.ipa" > "ios-output/Deltos-iPhone-${GITHUB_SHA}.sha256"
+      - name: Publish signed device IPA
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="snapshot-${GITHUB_SHA}"
+          for ATTEMPT in $(seq 1 40); do
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then break; fi
+            sleep 5
+          done
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          gh release upload "$TAG" ios-output/* --repo "$GITHUB_REPOSITORY" --clobber
