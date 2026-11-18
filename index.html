@@ -2244,6 +2244,27 @@ Me=(0,f.useCallback)(async e=>{let t=D.current.backend;if(t){w({type:`detail`,me
    browser's automatic rectangular focus ring on this non-tab-stop wrapper;
    real buttons and form controls retain their visible keyboard focus. */
 .triage-deck:focus,.triage-deck:focus-visible{outline:none}
+
+/* Deltos popup layering: keep floating surfaces above ordinary action controls. */
+:root{
+  --deltos-layer-popover:300;
+  --deltos-layer-toast:450;
+  --deltos-layer-dialog:500;
+}
+/* The bell's parent is a stacking context: raising only .notif-panel cannot
+   overtake .compact-actions, .deck-actions, or other sibling buttons. */
+.global-notifications,
+.triage-info-pop,
+.deltos-tone-menu,
+.search-choice-pop,
+.search-time-pop,
+.deltos-beta-popover{z-index:var(--deltos-layer-popover)}
+/* Full-screen interaction surfaces always cover popovers and app chrome. */
+.drawer-overlay,
+.modal-overlay,
+.dial-overlay{z-index:var(--deltos-layer-dialog)}
+.toast{z-index:var(--deltos-layer-toast)}
+
 </style>
   </head>
   <body>
