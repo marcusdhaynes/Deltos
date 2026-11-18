@@ -19,6 +19,8 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -29,6 +31,7 @@ jobs:
         shell: bash
         run: |
           npm install --no-audit --no-fund
+          node scripts/version-ci.mjs
           npm run icons
           npm run tauri -- ios init --ci
       - name: Compile the unsigned iOS simulator application
@@ -62,7 +65,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="snapshot-${GITHUB_SHA}"
+          TAG="v0.1.$(git rev-list --count HEAD)"
           for ATTEMPT in $(seq 1 40); do
             if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then break; fi
             sleep 5
@@ -77,6 +80,8 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -104,6 +109,7 @@ jobs:
           chmod 600 "$RUNNER_TEMP/AuthKey.p8"
           echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
           npm install --no-audit --no-fund
+          node scripts/version-ci.mjs
           npm run icons
           npm run tauri -- ios init --ci
       - name: Build signed iPhone IPA
@@ -127,7 +133,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="snapshot-${GITHUB_SHA}"
+          TAG="v0.1.$(git rev-list --count HEAD)"
           for ATTEMPT in $(seq 1 40); do
             if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then break; fi
             sleep 5
