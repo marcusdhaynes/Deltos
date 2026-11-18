@@ -58,7 +58,7 @@ jobs:
               --target "$GITHUB_SHA" \
               --title "Deltos v0.1.$(git rev-list --count HEAD) · ${SHORT}" \
               --notes "Exact source snapshot for commit \`${GITHUB_SHA}\`. Restore this version by checking out the commit or downloading the attached source ZIP. The SHA-256 checksum is attached. No installed app, user data, database, OAuth credentials, or third-party platform state are included." \
-              --latest=legacy
+              --latest=false
           fi
 
           git fetch --no-tags origin "refs/tags/${TAG}:refs/tags/${TAG}"
@@ -141,3 +141,7 @@ jobs:
         run: |
           set -euo pipefail
           gh release upload "v0.1.$(git rev-list --count HEAD)" snapshot-web/* --repo "$GITHUB_REPOSITORY" --clobber
+          # Only a verified web build from the CURRENT main head becomes Latest.
+          if [[ "$(git ls-remote origin refs/heads/main | cut -f1)" == "$GITHUB_SHA" ]]; then
+            gh release edit "v0.1.$(git rev-list --count HEAD)" --repo "$GITHUB_REPOSITORY" --latest
+          fi
