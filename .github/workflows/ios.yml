@@ -38,17 +38,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PROJECT="$(find src-tauri/gen/apple -maxdepth 3 -name '*.xcodeproj' -print -quit)"
-          test -n "$PROJECT"
-          SCHEME="$(xcodebuild -list -json -project "$PROJECT" | jq -r '.project.schemes[0]')"
-          test -n "$SCHEME"
-          test "$SCHEME" != null
-          xcodebuild -project "$PROJECT" -scheme "$SCHEME" \
-            -configuration Release -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath "$RUNNER_TEMP/deltos-ios-build" \
-            CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
-          APP="$(find "$RUNNER_TEMP/deltos-ios-build/Build/Products" -type d -name '*.app' -print -quit)"
+          # Tauri supplies a temporary Xcode build-context server; invoking
+          # xcodebuild directly is unsupported and fails on CI.
+          npm run tauri -- ios build --ci --target aarch64-sim --no-sign
+          APP="$(find src-tauri/gen/apple/build -type d -name '*.app' -print -quit)"
           test -n "$APP"
           mkdir -p ios-output
           ditto -c -k --sequesterRsrc --keepParent "$APP" "ios-output/Deltos-iOS-Simulator-${GITHUB_SHA}.zip"
