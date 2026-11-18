@@ -1,82 +1,95 @@
-name: Native build checks
+name: Build Deltos desktop releases
+
+# Build and permanently archive a native package for every main commit.
+# Separate jobs must not cancel older version builds.
 on:
-  workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - 'src-tauri/**'
-      - 'package.json'
-      - 'vite.config.ts'
-      - 'app-icon.svg'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deltos-native-${{ github.sha }}
+  cancel-in-progress: false
+
 jobs:
-  windows:
-    runs-on: windows-latest
+  desktop:
+    name: ${{ matrix.platform }} release build
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Windows
+            runner: windows-latest
+          - platform: Linux
+            runner: ubuntu-22.04
+          - platform: macOS
+            runner: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - uses: dtolnay/rust-toolchain@stable
-      - run: npm install --no-audit --no-fund
-      - run: npm run icons
-      - run: npm run desktop:build
+      - name: Install Linux desktop prerequisites
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf
+      - name: Install frontend and generate icon assets
+        shell: bash
+        run: |
+          npm install --no-audit --no-fund
+          npm run icons
+      - name: Compile native app and installer
+        shell: bash
+        run: npm run desktop:build
+
+      - name: Assemble immutable versioned installer archive
+        shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          BUNDLE="src-tauri/target/release/bundle"
+          test -d "$BUNDLE"
+          test -n "$(find "$BUNDLE" -type f -print -quit)"
+          mkdir -p release-output
+          ARCHIVE="Deltos-${PLATFORM}-${GITHUB_SHA}-bundles.tar.gz"
+          tar -czf "release-output/$ARCHIVE" -C "$BUNDLE" .
+          while IFS= read -r -d '' FILE; do
+            BASE="$(basename "$FILE")"
+            cp "$FILE" "release-output/Deltos-${PLATFORM}-${GITHUB_SHA}-${BASE}"
+          done < <(find "$BUNDLE" -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.dmg' -o -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \) -print0)
+          (
+            cd release-output
+            sha256sum ./* > "Deltos-${PLATFORM}-${GITHUB_SHA}-SHA256SUMS.txt"
+          )
+
       - uses: actions/upload-artifact@v4
         with:
-          name: deltos-windows
-          path: src-tauri/target/release/bundle/**
-  linux:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - uses: dtolnay/rust-toolchain@stable
-      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf
-      - run: npm install --no-audit --no-fund
-      - run: npm run icons
-      - run: npm run desktop:build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: deltos-linux
-          path: src-tauri/target/release/bundle/**
-  macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - uses: dtolnay/rust-toolchain@stable
-      - run: npm install --no-audit --no-fund
-      - run: npm run icons
-      - run: npm run desktop:build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: deltos-macos
-          path: src-tauri/target/release/bundle/**
-  android:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@v4
-        with:
-          packages: platform-tools
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
-      - run: npm install --no-audit --no-fund
-      - run: npm run icons
-      - run: npm run android:init
-      - run: npm run android:build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: deltos-android
-          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          name: Deltos-${{ matrix.platform }}-${{ github.sha }}
+          path: release-output/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish installers and checksums to the immutable GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="snapshot-${GITHUB_SHA}"
+          for ATTEMPT in $(seq 1 40); do
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then break; fi
+            sleep 5
+          done
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          gh release upload "$TAG" release-output/* --repo "$GITHUB_REPOSITORY" --clobber
