@@ -59,8 +59,13 @@ jobs:
         run: |
           set -euo pipefail
           TAG="v0.1.$(git rev-list --count HEAD)"
+          FALLBACK="snapshot-${GITHUB_SHA}"
           for ATTEMPT in $(seq 1 40); do
             if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then break; fi
+            if gh release view "$FALLBACK" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              TAG="$FALLBACK"
+              break
+            fi
             sleep 5
           done
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
@@ -127,8 +132,13 @@ jobs:
         run: |
           set -euo pipefail
           TAG="v0.1.$(git rev-list --count HEAD)"
+          FALLBACK="snapshot-${GITHUB_SHA}"
           for ATTEMPT in $(seq 1 40); do
             if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then break; fi
+            if gh release view "$FALLBACK" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              TAG="$FALLBACK"
+              break
+            fi
             sleep 5
           done
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null

@@ -5,13 +5,13 @@ recoverable version. Do not use force-push or rewrite branch history.
 
 ## Automatic versions
 
-- The CI build version is `v0.1.N`, where `N` is the full Git commit count
+- The preferred CI build version is `v0.1.N`, where `N` is the full Git commit count
   reachable from the exact commit being released. Each CI runner fetches the
   complete Git history and stamps the **same** version into the package,
   Tauri application configuration, Rust package and dormant update checker.
   The source tree on `main` is not modified by the stamp.
-- `.github/workflows/source-snapshots.yml` creates a GitHub Release for each
-  new main commit with an exact source ZIP, SHA-256, full Git bundle and checksum.
+- `.github/workflows/source-snapshots.yml` attempts a semantic GitHub Release for each
+  new main commit, falling back to a `snapshot-<SHA>` prerelease if GitHub blocks that label, with an exact source ZIP, SHA-256, full Git bundle and checksum.
   After successfully building its web distribution, it also stores a web ZIP
   and checksum. The current `main` head alone can be marked **Latest** after
   a successful web build.

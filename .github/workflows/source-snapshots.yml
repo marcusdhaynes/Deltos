@@ -52,13 +52,27 @@ jobs:
 
           # A rerun updates assets on the SAME snapshot, never replaces
           # another commit's release or changes an existing release target.
+          # Try the semantic GitHub Release first; never sacrifice backup
+          # preservation to a release-tag permission or API failure.
           if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release create "$TAG" \
+            if ! gh release create "$TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
-              --title "Deltos v0.1.$(git rev-list --count HEAD) · ${SHORT}" \
-              --notes "Exact source snapshot for commit \`${GITHUB_SHA}\`. Restore this version by checking out the commit or downloading the attached source ZIP. The SHA-256 checksum is attached. No installed app, user data, database, OAuth credentials, or third-party platform state are included." \
-              --latest=false
+              --title "Deltos $TAG · ${SHORT}" \
+              --notes "Source version \`${GITHUB_SHA}\`. Builds attach as they pass. The Git history bundle supports recovery." \
+              --latest=false; then
+              echo "::warning::Semantic Release unavailable; saving SHA snapshot instead."
+              TAG="snapshot-${GITHUB_SHA}"
+              if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+                gh release create "$TAG" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --target "$GITHUB_SHA" \
+                  --title "Deltos v0.1.$(git rev-list --count HEAD) source backup" \
+                  --notes "Recoverable source and history for commit \`${GITHUB_SHA}\`." \
+                  --prerelease \
+                  --latest=false
+              fi
+            fi
           fi
 
           git fetch --no-tags origin "refs/tags/${TAG}:refs/tags/${TAG}"
@@ -140,8 +154,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release upload "v0.1.$(git rev-list --count HEAD)" snapshot-web/* --repo "$GITHUB_REPOSITORY" --clobber
+          TAG="v0.1.$(git rev-list --count HEAD)"
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            TAG="snapshot-${GITHUB_SHA}"
+          fi
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          gh release upload "$TAG" snapshot-web/* --repo "$GITHUB_REPOSITORY" --clobber
           # Only a verified web build from the CURRENT main head becomes Latest.
           if [[ "$(git ls-remote origin refs/heads/main | cut -f1)" == "$GITHUB_SHA" ]]; then
-            gh release edit "v0.1.$(git rev-list --count HEAD)" --repo "$GITHUB_REPOSITORY" --latest
+            if [[ "$TAG" == v* ]]; then
+              gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --latest
+            fi
           fi
