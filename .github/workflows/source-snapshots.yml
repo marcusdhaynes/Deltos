@@ -1,0 +1,74 @@
+name: Preserve Deltos source snapshots
+
+# Every pushed main commit is a recoverable, individually downloadable
+# version. Unlike Actions artifacts, GitHub Release assets have no 90-day
+# retention expiry. Releases are kept until an administrator deletes them.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deltos-snapshot-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    name: Archive source commit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the complete commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build exact-commit source archive and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          mkdir -p snapshot
+          git archive --format=zip --output="snapshot/Deltos-source-${GITHUB_SHA}.zip" "${GITHUB_SHA}"
+          (
+            cd snapshot
+            sha256sum "Deltos-source-${GITHUB_SHA}.zip" > "Deltos-source-${GITHUB_SHA}.sha256"
+          )
+          test -s "snapshot/Deltos-source-${GITHUB_SHA}.zip"
+
+      - name: Publish permanent release snapshot
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="snapshot-${GITHUB_SHA}"
+          SHORT="${GITHUB_SHA:0:12}"
+
+          # A rerun updates assets on the SAME snapshot, never replaces
+          # another commit's release or changes an existing release target.
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "Deltos source snapshot ${SHORT}" \
+              --notes "Exact source snapshot for commit \`${GITHUB_SHA}\`. Restore this version by checking out the commit or downloading the attached source ZIP. The SHA-256 checksum is attached. No installed app, user data, database, OAuth credentials, or third-party platform state are included." \
+              --prerelease \
+              --latest=false
+          fi
+
+          ACTUAL_TARGET="$(git rev-list -n 1 "$TAG")"
+          if [[ "$ACTUAL_TARGET" != "$GITHUB_SHA" ]]; then
+            echo "::error::Snapshot tag does not identify the expected commit."
+            exit 1
+          fi
+
+          gh release upload "$TAG" \
+            "snapshot/Deltos-source-${GITHUB_SHA}.zip" \
+            "snapshot/Deltos-source-${GITHUB_SHA}.sha256" \
+            --repo "$GITHUB_REPOSITORY" --clobber
+
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --json url,assets --jq '{url,files:[.assets[].name]}'
