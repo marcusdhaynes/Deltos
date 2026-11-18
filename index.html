@@ -2265,6 +2265,30 @@ Me=(0,f.useCallback)(async e=>{let t=D.current.backend;if(t){w({type:`detail`,me
 .dial-overlay{z-index:var(--deltos-layer-dialog)}
 .toast{z-index:var(--deltos-layer-toast)}
 
+
+/* Unified popup stacking across search filters, notifications, and header menus. */
+:root{
+  /* These must outrank action buttons, fixed FAB, sidebar and drag controls.
+     Dialogs and toasts retain precedence over non-modal dropdowns. */
+  --deltos-layer-popover:11000;
+  --deltos-layer-dialog:11200;
+  --deltos-layer-toast:11300;
+}
+/* A child z-index cannot escape the z-index of its sticky .header parent.
+   Elevate the *entire* header whenever a header dropdown is open. */
+.header:has(.search-choice-pop,.search-time-pop,.deltos-tone-menu,.deltos-beta-access[open]){
+  z-index:11025;
+}
+/* The notifications bell and Triage help button each form their own layer. */
+.global-notifications{z-index:var(--deltos-layer-popover)}
+.triage-header:has(.triage-info-pop){z-index:11020}
+.search-choice-pop,.search-time-pop,.deltos-tone-menu,
+.deltos-beta-popover,.triage-info-pop,.shared-notif-panel{
+  z-index:var(--deltos-layer-popover);
+  box-shadow:var(--shadowbig);
+}
+.modal-overlay,.drawer-overlay,.dial-overlay{z-index:var(--deltos-layer-dialog)}
+.toast{z-index:var(--deltos-layer-toast)}
 </style>
   </head>
   <body>
