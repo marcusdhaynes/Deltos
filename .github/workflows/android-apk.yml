@@ -11,10 +11,12 @@ on:
       - 'app-icon.svg'
       - '.github/workflows/android-apk.yml'
 permissions:
-  contents: read
+  contents: write
+# Keep builds from separate commits: older builds must not be cancelled
+# when a newer commit arrives before the APK is ready.
 concurrency:
-  group: deltos-android-apk
-  cancel-in-progress: true
+  group: deltos-android-apk-${{ github.sha }}
+  cancel-in-progress: false
 jobs:
   apk:
     name: Build and verify APK
@@ -98,3 +100,21 @@ jobs:
           path: android-output/Deltos-Android-Beta.apk
           if-no-files-found: error
           retention-days: 90
+
+      - name: Preserve installable APK in permanent snapshot release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="snapshot-${GITHUB_SHA}"
+          for ATTEMPT in $(seq 1 24); do
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then break; fi
+            sleep 5
+          done
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          VERSIONED="android-output/Deltos-Android-Beta-${GITHUB_SHA}.apk"
+          cp android-output/Deltos-Android-Beta.apk "$VERSIONED"
+          sha256sum "$VERSIONED" > "${VERSIONED}.sha256"
+          gh release upload "$TAG" "$VERSIONED" "${VERSIONED}.sha256" \
+            --repo "$GITHUB_REPOSITORY" --clobber
