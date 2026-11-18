@@ -73,3 +73,28 @@ jobs:
 
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
             --json url,assets --jq '{url,files:[.assets[].name]}'
+          
+          # Self-heal snapshots from interrupted archive runs. Never overwrite
+          # another commit's tag; only repair absent ZIP/checksum assets.
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 100 \
+            --json tagName --jq '.[].tagName' | while read -r OLD_TAG; do
+            [[ "$OLD_TAG" =~ ^snapshot-([0-9a-f]{40})$ ]] || continue
+            OLD_SHA="${BASH_REMATCH[1]}"
+            [[ "$OLD_SHA" == "$GITHUB_SHA" ]] && continue
+            git cat-file -e "${OLD_SHA}^{commit}" 2>/dev/null || continue
+            EXISTING="$(gh release view "$OLD_TAG" --repo "$GITHUB_REPOSITORY" \
+              --json assets --jq '[.assets[].name] | join(" ")')"
+            if [[ "$EXISTING" == *"Deltos-source-${OLD_SHA}.zip"* &&
+                  "$EXISTING" == *"Deltos-source-${OLD_SHA}.sha256"* ]]; then
+              continue
+            fi
+            git archive --format=zip --output="snapshot/Deltos-source-${OLD_SHA}.zip" "$OLD_SHA"
+            (
+              cd snapshot
+              sha256sum "Deltos-source-${OLD_SHA}.zip" > "Deltos-source-${OLD_SHA}.sha256"
+            )
+            gh release upload "$OLD_TAG" \
+              "snapshot/Deltos-source-${OLD_SHA}.zip" \
+              "snapshot/Deltos-source-${OLD_SHA}.sha256" \
+              --repo "$GITHUB_REPOSITORY" --clobber
+          done
