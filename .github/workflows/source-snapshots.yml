@@ -59,6 +59,7 @@ jobs:
               --latest=false
           fi
 
+          git fetch --no-tags origin "refs/tags/${TAG}:refs/tags/${TAG}"
           ACTUAL_TARGET="$(git rev-list -n 1 "$TAG")"
           if [[ "$ACTUAL_TARGET" != "$GITHUB_SHA" ]]; then
             echo "::error::Snapshot tag does not identify the expected commit."
