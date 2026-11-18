@@ -17,6 +17,8 @@ jobs:
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -33,6 +35,7 @@ jobs:
       - name: Install dependencies and app icons
         run: |
           npm install --no-audit --no-fund
+          node scripts/version-ci.mjs
           npm run icons
       - name: Initialize Android and build latest Deltos source
         run: |
@@ -100,7 +103,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="snapshot-${GITHUB_SHA}"
+          TAG="v0.1.$(git rev-list --count HEAD)"
           for ATTEMPT in $(seq 1 24); do
             if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then break; fi
             sleep 5
