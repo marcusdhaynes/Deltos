@@ -37,6 +37,9 @@ jobs:
             sha256sum "Deltos-source-${GITHUB_SHA}.zip" > "Deltos-source-${GITHUB_SHA}.sha256"
           )
           test -s "snapshot/Deltos-source-${GITHUB_SHA}.zip"
+          # A self-contained Git bundle preserves the complete reachable history.
+          git bundle create "snapshot/Deltos-history-${GITHUB_SHA}.bundle" --all
+          sha256sum "snapshot/Deltos-history-${GITHUB_SHA}.bundle" > "snapshot/Deltos-history-${GITHUB_SHA}.sha256"
 
       - name: Publish permanent release snapshot
         shell: bash
@@ -69,6 +72,8 @@ jobs:
           gh release upload "$TAG" \
             "snapshot/Deltos-source-${GITHUB_SHA}.zip" \
             "snapshot/Deltos-source-${GITHUB_SHA}.sha256" \
+            "snapshot/Deltos-history-${GITHUB_SHA}.bundle" \
+            "snapshot/Deltos-history-${GITHUB_SHA}.sha256" \
             --repo "$GITHUB_REPOSITORY" --clobber
 
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
@@ -98,3 +103,39 @@ jobs:
               "snapshot/Deltos-source-${OLD_SHA}.sha256" \
               --repo "$GITHUB_REPOSITORY" --clobber
           done
+
+
+  web:
+    name: Archive recoverable web distribution
+    needs: snapshot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compile web distribution for this exact commit
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+      - name: Package dist and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/index.html
+          mkdir -p snapshot-web
+          (
+            cd dist
+            zip -qr "../snapshot-web/Deltos-Web-${GITHUB_SHA}.zip" .
+          )
+          (
+            cd snapshot-web
+            sha256sum "Deltos-Web-${GITHUB_SHA}.zip" > "Deltos-Web-${GITHUB_SHA}.sha256"
+          )
+      - name: Attach web archive to source release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload "snapshot-${GITHUB_SHA}" snapshot-web/* --repo "$GITHUB_REPOSITORY" --clobber
