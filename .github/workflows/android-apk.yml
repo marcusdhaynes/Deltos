@@ -3,13 +3,6 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - 'index.html'
-      - 'src-tauri/**'
-      - 'package.json'
-      - 'vite.config.ts'
-      - 'app-icon.svg'
-      - '.github/workflows/android-apk.yml'
 permissions:
   contents: write
 # Keep builds from separate commits: older builds must not be cancelled
